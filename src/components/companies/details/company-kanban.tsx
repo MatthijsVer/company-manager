@@ -176,8 +176,47 @@ export function KanbanBoard({
 
       if (!result.destination || !settings) return;
 
-      const { source, destination, draggableId } = result;
+      const { source, destination, draggableId, type } = result;
 
+      // Handle column reordering
+      if (type === "column") {
+        if (source.index === destination.index) return;
+
+        // Work with visible columns only
+        const visibleColumns = settings.columns
+          .filter((col) => col.isVisible)
+          .sort((a, b) => a.order - b.order);
+        
+        const [movedColumn] = visibleColumns.splice(source.index, 1);
+        visibleColumns.splice(destination.index, 0, movedColumn);
+
+        // Update all columns with new order
+        const allColumns = settings.columns.map((col) => {
+          const visibleIndex = visibleColumns.findIndex((vc) => vc.id === col.id);
+          if (visibleIndex !== -1) {
+            return { ...col, order: visibleIndex };
+          }
+          return col;
+        });
+
+        const newSettings = {
+          ...settings,
+          columns: allColumns,
+        };
+
+        setSettings(newSettings);
+        
+        try {
+          await handleUpdateSettings(newSettings);
+        } catch (error) {
+          console.error("Failed to reorder columns:", error);
+          toast.error("Failed to reorder columns");
+          fetchBoardConfig(); // Revert on error
+        }
+        return;
+      }
+
+      // Handle task reordering (existing code)
       if (
         source.droppableId === destination.droppableId &&
         source.index === destination.index
@@ -358,6 +397,40 @@ export function KanbanBoard({
     }
   };
 
+  const handleMoveColumn = async (columnId: string, direction: "left" | "right") => {
+    if (!settings) return;
+
+    try {
+      const columns = [...settings.columns];
+      const currentIndex = columns.findIndex((col) => col.id === columnId);
+      
+      if (currentIndex === -1) return;
+      
+      const newIndex = direction === "left" ? currentIndex - 1 : currentIndex + 1;
+      
+      if (newIndex < 0 || newIndex >= columns.length) return;
+      
+      // Swap columns
+      [columns[currentIndex], columns[newIndex]] = [columns[newIndex], columns[currentIndex]];
+      
+      // Update order values
+      columns.forEach((col, index) => {
+        col.order = index;
+      });
+
+      const newSettings = {
+        ...settings,
+        columns,
+      };
+
+      await handleUpdateSettings(newSettings);
+      toast.success(`Column moved ${direction}`);
+    } catch (error) {
+      console.error("Failed to move column:", error);
+      toast.error("Failed to move column");
+    }
+  };
+
   if (loading || !settings) {
     return (
       <div className="flex items-center justify-center h-full">
@@ -424,55 +497,79 @@ export function KanbanBoard({
       <DragDropContext onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
         <div className="flex-1 overflow-x-auto overflow-y-hidden">
           <div className="h-full p-4">
-            <div
-              className="flex h-full"
-              style={{
-                gap: settings.boardStyle.columnSpacing || "1rem",
-                minWidth: "max-content",
-              }}
-            >
-              {settings.columns
-                .filter((col) => col.isVisible)
-                .sort((a, b) => a.order - b.order)
-                .map((column) => (
-                  <KanbanColumn
-                    key={column.id}
-                    column={column}
-                    tasks={tasks
-                      .filter(
-                        (t) =>
-                          t.status === column.id &&
-                          (searchQuery === "" ||
-                            t.name
-                              .toLowerCase()
-                              .includes(searchQuery.toLowerCase()))
-                      )
-                      .sort(
-                        (a, b) => (a.columnOrder || 0) - (b.columnOrder || 0)
-                      )}
-                    settings={settings}
-                    isDragging={isDragging}
-                    onTaskClick={(task) => {
-                      if (!isDragging) {
-                        setSelectedTask(task);
-                        setIsCreatingTask(false);
-                        setIsTaskDialogOpen(true);
-                      }
-                    }}
-                    onAddTask={() => {
-                      setQuickAddColumnId(column.id);
-                    }}
-                    onQuickAddTask={handleQuickAddTask}
-                    quickAddColumnId={quickAddColumnId}
-                    onCancelQuickAdd={() => setQuickAddColumnId(null)}
-                    onMoveTask={handleMoveTask}
-                    onDeleteTask={handleDeleteTask}
-                    onDeleteColumn={handleDeleteColumn}
-                    onEditColumn={handleEditColumn}
-                    onToggleColumnVisibility={handleToggleColumnVisibility}
-                  />
-                ))}
-            </div>
+            <Droppable droppableId="columns" direction="horizontal" type="column">
+              {(provided) => (
+                <div
+                  ref={provided.innerRef}
+                  {...provided.droppableProps}
+                  className="flex h-full"
+                  style={{
+                    gap: settings.boardStyle.columnSpacing || "1rem",
+                    minWidth: "max-content",
+                  }}
+                >
+                  {settings.columns
+                    .filter((col) => col.isVisible)
+                    .sort((a, b) => a.order - b.order)
+                    .map((column, index, visibleColumns) => (
+                      <Draggable
+                        key={column.id}
+                        draggableId={column.id}
+                        index={index}
+                      >
+                        {(provided, snapshot) => (
+                          <div
+                            ref={provided.innerRef}
+                            {...provided.draggableProps}
+                            style={provided.draggableProps.style}
+                          >
+                            <KanbanColumn
+                              column={column}
+                              tasks={tasks
+                                .filter(
+                                  (t) =>
+                                    t.status === column.id &&
+                                    (searchQuery === "" ||
+                                      t.name
+                                        .toLowerCase()
+                                        .includes(searchQuery.toLowerCase()))
+                                )
+                                .sort(
+                                  (a, b) => (a.columnOrder || 0) - (b.columnOrder || 0)
+                                )}
+                              settings={settings}
+                              isDragging={isDragging || snapshot.isDragging}
+                              onTaskClick={(task) => {
+                                if (!isDragging) {
+                                  setSelectedTask(task);
+                                  setIsCreatingTask(false);
+                                  setIsTaskDialogOpen(true);
+                                }
+                              }}
+                              onAddTask={() => {
+                                setQuickAddColumnId(column.id);
+                              }}
+                              onQuickAddTask={handleQuickAddTask}
+                              quickAddColumnId={quickAddColumnId}
+                              onCancelQuickAdd={() => setQuickAddColumnId(null)}
+                              onMoveTask={handleMoveTask}
+                              onDeleteTask={handleDeleteTask}
+                              onDeleteColumn={handleDeleteColumn}
+                              onEditColumn={handleEditColumn}
+                              onToggleColumnVisibility={handleToggleColumnVisibility}
+                              onMoveColumn={handleMoveColumn}
+                              totalColumns={visibleColumns.length}
+                              columnIndex={index}
+                              dragHandleProps={provided.dragHandleProps}
+                            />
+                          </div>
+                        )}
+                      </Draggable>
+                    ))}
+                  {provided.placeholder}
+                </div>
+              )}
+            </Droppable>
           </div>
         </div>
       </DragDropContext>

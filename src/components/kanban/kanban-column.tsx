@@ -48,6 +48,9 @@ import {
   X,
   Check,
   ChevronRight,
+  ChevronLeft,
+  ArrowLeft,
+  ArrowRight,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
@@ -68,6 +71,10 @@ interface KanbanColumnProps {
   onDeleteColumn?: (columnId: string) => void;
   onEditColumn?: (column: ColumnConfig) => void;
   onToggleColumnVisibility?: (columnId: string) => void;
+  onMoveColumn?: (columnId: string, direction: "left" | "right") => void;
+  totalColumns: number;
+  columnIndex: number;
+  dragHandleProps?: any;
 }
 
 const ICON_MAP: { [key: string]: any } = {
@@ -92,12 +99,19 @@ export function KanbanColumn({
   onDeleteColumn,
   onEditColumn,
   onToggleColumnVisibility,
+  onMoveColumn,
+  totalColumns,
+  columnIndex,
+  dragHandleProps,
 }: KanbanColumnProps) {
   const [localDragging, setLocalDragging] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [quickTaskName, setQuickTaskName] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isEditingTitle, setIsEditingTitle] = useState(false);
+  const [editedTitle, setEditedTitle] = useState(column.title);
   const inputRef = useRef<HTMLInputElement>(null);
+  const titleInputRef = useRef<HTMLInputElement>(null);
 
   const isQuickAddActive = quickAddColumnId === column.id;
 
@@ -106,6 +120,10 @@ export function KanbanColumn({
       inputRef.current.focus();
     }
   }, [isQuickAddActive]);
+
+  useEffect(() => {
+    setEditedTitle(column.title);
+  }, [column.title]);
 
   const handleQuickSubmit = async () => {
     if (!quickTaskName.trim() || isSubmitting) return;
@@ -164,6 +182,29 @@ export function KanbanColumn({
     }
   };
 
+  const handleStartEditTitle = () => {
+    setIsEditingTitle(true);
+    setEditedTitle(column.title);
+    setTimeout(() => {
+      titleInputRef.current?.select();
+    }, 0);
+  };
+
+  const handleSaveTitle = () => {
+    const trimmedTitle = editedTitle.trim();
+    if (trimmedTitle && trimmedTitle !== column.title) {
+      onEditColumn?.({ ...column, title: trimmedTitle });
+    } else {
+      setEditedTitle(column.title);
+    }
+    setIsEditingTitle(false);
+  };
+
+  const handleCancelEditTitle = () => {
+    setEditedTitle(column.title);
+    setIsEditingTitle(false);
+  };
+
   const columnWidth = settings.boardStyle.compactMode ? "w-55" : "w-67";
 
   return (
@@ -171,10 +212,40 @@ export function KanbanColumn({
       <div className={cn("flex flex-col", columnWidth)}>
         {/* Column Header */}
         <div className="mb-3">
-          <div className="flex items-center justify-between mb-2">
+          <div
+            className={cn(
+              "flex items-center justify-between mb-2",
+              isEditingTitle ? "" : "cursor-grab active:cursor-grabbing"
+            )}
+            {...(isEditingTitle ? {} : dragHandleProps)}
+          >
             <div className="flex items-center gap-2 px-2">
               {/* <div>{getStatusIcon(column.icon)}</div> */}
-              <h3 className="font-semibold text-sm">{column.title}</h3>
+              {isEditingTitle ? (
+                <Input
+                  ref={titleInputRef}
+                  value={editedTitle}
+                  onChange={(e) => setEditedTitle(e.target.value)}
+                  onBlur={handleSaveTitle}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      handleSaveTitle();
+                    } else if (e.key === "Escape") {
+                      handleCancelEditTitle();
+                    }
+                  }}
+                  onClick={(e) => e.stopPropagation()}
+                  className="h-6 px-2 py-0 text-sm font-semibold w-32"
+                />
+              ) : (
+                <h3
+                  className="font-semibold text-sm cursor-text hover:text-[#FF6B4A]"
+                  onDoubleClick={handleStartEditTitle}
+                >
+                  {column.title}
+                </h3>
+              )}
               <Badge variant="secondary" className="text-xs">
                 {tasks.length}
               </Badge>
@@ -188,25 +259,20 @@ export function KanbanColumn({
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="w-48">
-                  <DropdownMenuItem onClick={() => onEditColumn?.(column)}>
-                    <Settings className="h-3.5 w-3.5 mr-2" />
-                    Edit column
+                  <DropdownMenuItem
+                    onClick={() => onMoveColumn?.(column.id, "left")}
+                    disabled={columnIndex === 0}
+                  >
+                    <ArrowLeft className="h-3.5 w-3.5 mr-2" />
+                    Move left
                   </DropdownMenuItem>
 
                   <DropdownMenuItem
-                    onClick={() => onToggleColumnVisibility?.(column.id)}
+                    onClick={() => onMoveColumn?.(column.id, "right")}
+                    disabled={columnIndex === totalColumns - 1}
                   >
-                    {column.isVisible ? (
-                      <>
-                        <EyeOff className="h-3.5 w-3.5 mr-2" />
-                        Hide column
-                      </>
-                    ) : (
-                      <>
-                        <Eye className="h-3.5 w-3.5 mr-2" />
-                        Show column
-                      </>
-                    )}
+                    <ArrowRight className="h-3.5 w-3.5 mr-2" />
+                    Move right
                   </DropdownMenuItem>
 
                   <DropdownMenuSeparator />
