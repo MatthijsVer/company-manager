@@ -1,0 +1,715 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserStatus {
+  ACTIVE
+  INACTIVE
+  SUSPENDED
+  INVITED
+}
+
+enum OrgRole {
+  OWNER
+  ADMIN
+  PROJECT_MANAGER
+  HR
+  FINANCE
+  MEMBER
+  CONTRACTOR
+  CLIENT
+}
+
+/**
+ * NEW: 2SV method + token purpose *
+ */
+enum TwoFactorMethod {
+  EMAIL
+  TOTP
+}
+
+enum TwoFactorPurpose {
+  ENABLE // verify during enabling 2SV
+  LOGIN // verify during login
+  RECOVERY // optional: future use
+}
+
+enum CompanyStatus {
+  ACTIVE
+  INACTIVE
+  ARCHIVED
+  PENDING
+}
+
+enum CompanyType {
+  PROSPECT
+  CLIENT
+  PARTNER
+  VENDOR
+  PAST_CLIENT
+}
+
+model User {
+  id              String           @id @default(cuid())
+  email           String           @unique
+  emailVerified   DateTime?
+  passwordHash    String?
+  name            String?
+  firstName       String?
+  lastName        String?
+  image           String?
+  phone           String?
+  locale          String?
+  timezone        String?
+  status          UserStatus       @default(ACTIVE)
+  assignedTasks   Task[]           @relation("TaskAssignee")
+  reportedTasks   Task[]           @relation("TaskReporter")
+  taskComments    TaskComment[]
+  taskAttachments TaskAttachment[]
+
+  /**
+   * 2-Step Verification core flags *
+   */
+  twoFactorEnabled         Boolean          @default(false)
+  twoFactorMethod          TwoFactorMethod?
+  twoFactorEmailVerifiedAt DateTime? // set when email 2SV is confirmed
+  // (Optional future TOTP support)
+  totpSecret               String?
+  backupCodes              String?
+
+  preferences  Json?
+  lastLoginAt  DateTime?
+  lastActiveAt DateTime?
+
+  // Auth providers & sessions (NextAuth-style)
+  accounts Account[]
+  sessions Session[]
+
+  // Multi-tenant
+  memberships Membership[]
+  invitesSent Invite[]     @relation("InvitesSent")
+  invitesRecv Invite[]     @relation("InvitesReceived")
+
+  companyNotes      CompanyNote[]
+  companyDocuments  CompanyDocument[]
+  companyActivities CompanyActivity[]
+  boardPermissions  BoardPermission[]
+
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+  TwoFactorToken TwoFactorToken[]
+
+  auditLogs              AuditLog[]
+  companyAssignments     CompanyAssignment[]
+  timeEntries            TimeEntry[]
+  organizationDocuments  OrganizationDocument[]
+  documentLinks          DocumentCompanyLink[]
+  organizationCategories OrganizationCategory[]
+
+  KanbanBoardConfig KanbanBoardConfig[]
+}
+
+/**
+ * NEW: per-user one-time code, stored as a hash (never the raw code) *
+ */
+model TwoFactorToken {
+  id         String           @id @default(cuid())
+  userId     String
+  purpose    TwoFactorPurpose
+  codeHash   String // hash of the numeric code (e.g., bcrypt/argon2)
+  expiresAt  DateTime
+  consumedAt DateTime?
+  createdAt  DateTime         @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, purpose])
+  @@index([expiresAt])
+}
+
+model Organization {
+  id          String       @id @default(cuid())
+  name        String
+  slug        String       @unique
+  locale      String       @default("nl-NL")
+  currency    String       @default("EUR")
+  branding    Json?
+  memberships Membership[]
+  invites     Invite[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  companies    Company[]
+  customFields CustomFieldDefinition[]
+  auditLogs    AuditLog[]
+
+  roleColorSettings RoleColorSettings?
+
+  Task Task[]
+
+  OrganizationDocument OrganizationDocument[]
+
+  OrganizationCategory OrganizationCategory[]
+
+  KanbanBoardConfig KanbanBoardConfig[]
+}
+
+model Membership {
+  id             String  @id @default(cuid())
+  userId         String
+  organizationId String
+  role           OrgRole @default(MEMBER)
+  title          String?
+  isDefault      Boolean @default(false)
+
+  user         User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  organization Organization           @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  documents    OrganizationDocument[]
+  categories   OrganizationCategory[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, organizationId])
+  @@index([organizationId, role])
+}
+
+enum InviteStatus {
+  PENDING
+  ACCEPTED
+  EXPIRED
+  REVOKED
+}
+
+model Invite {
+  id             String       @id @default(cuid())
+  organizationId String
+  email          String
+  role           OrgRole
+  token          String       @unique
+  inviterId      String?
+  inviteeId      String?
+  status         InviteStatus @default(PENDING)
+  expiresAt      DateTime?
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  inviter      User?        @relation("InvitesSent", fields: [inviterId], references: [id], onDelete: SetNull)
+  invitee      User?        @relation("InvitesReceived", fields: [inviteeId], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([email, organizationId])
+}
+
+// --- NextAuth-compatible models (optional but handy) ---
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+model Company {
+  id             String  @id @default(cuid())
+  organizationId String
+  name           String
+  slug           String?
+
+  // Contact Info
+  email   String?
+  phone   String?
+  website String?
+  address Json?
+
+  // Business Info
+  industry      String?
+  size          String? // "1-10", "11-50", etc.
+  annualRevenue String?
+  description   String? @db.Text
+
+  // Status & Classification
+  status CompanyStatus @default(ACTIVE)
+  type   CompanyType   @default(PROSPECT)
+  tags   String? // Comma-separated or JSON array
+  rating Int? // 1-5 stars
+
+  color      String?
+  isFavorite Boolean @default(false)
+  priority   String?
+
+  // Existing fields
+  customFields Json?
+  metadata     Json?
+
+  // Relations
+  organization Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  notes        CompanyNote[]
+  contacts     CompanyContact[]
+  documents    CompanyDocument[]
+  activities   CompanyActivity[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  createdBy String?
+  updatedBy String?
+
+  assignedUsers CompanyAssignment[]
+
+  timeEntries       TimeEntry[]
+  tasks             Task[]
+  linkedDocuments   DocumentCompanyLink[]
+  KanbanBoardConfig KanbanBoardConfig[]
+
+  @@unique([organizationId, slug])
+  @@index([organizationId])
+  @@index([organizationId, status])
+  @@index([organizationId, type])
+  @@index([organizationId, isFavorite])
+}
+
+model CustomFieldDefinition {
+  id             String  @id @default(cuid())
+  organizationId String
+  entityType     String // "company", "invoice", etc.
+  fieldKey       String // Unique key for the field
+  fieldLabel     String // Display name
+  fieldType      String // "text", "number", "date", "select", etc.
+  required       Boolean @default(false)
+  options        Json? // For select/multiselect fields
+  validation     Json? // Validation rules
+  displayOrder   Int     @default(0)
+  isActive       Boolean @default(true)
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([organizationId, entityType, fieldKey])
+  @@index([organizationId, entityType])
+}
+
+model AuditLog {
+  id             String  @id @default(cuid())
+  organizationId String
+  userId         String
+  userEmail      String
+  action         String // "create", "update", "delete", "view"
+  entityType     String // "company", "invoice", etc.
+  entityId       String
+  entityName     String? // For quick reference
+  changes        Json? // { before: {}, after: {} }
+  metadata       Json? // IP, user agent, etc.
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user         User         @relation(fields: [userId], references: [id])
+
+  createdAt DateTime @default(now())
+
+  @@index([organizationId, entityType, entityId])
+  @@index([organizationId, userId])
+  @@index([createdAt])
+}
+
+model CompanyNote {
+  id        String  @id @default(cuid())
+  companyId String
+  userId    String
+  content   String  @db.Text
+  category  String? // "general", "meeting", "call", "email", etc.
+  isPinned  Boolean @default(false)
+  metadata  Json? // attachments, mentions, etc.
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([companyId, createdAt])
+  @@index([companyId, category])
+}
+
+model CompanyContact {
+  id            String    @id @default(cuid())
+  companyId     String
+  name          String
+  title         String?
+  email         String?
+  phone         String?
+  isPrimary     Boolean   @default(false)
+  department    String?
+  notes         String?   @db.Text
+  lastContactAt DateTime?
+  metadata      Json? // social links, preferences, etc.
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([companyId])
+  @@index([email])
+}
+
+model CompanyDocument {
+  id          String  @id @default(cuid())
+  companyId   String
+  uploadedBy  String
+  fileName    String
+  fileUrl     String
+  fileSize    Int
+  mimeType    String
+  category    String? // "contract", "proposal", "invoice", etc.
+  description String?
+  metadata    Json? // version, tags, etc.
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [uploadedBy], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([companyId, category])
+  @@index([companyId, createdAt])
+}
+
+model CompanyActivity {
+  id          String @id @default(cuid())
+  companyId   String
+  userId      String
+  type        String // "note_added", "contact_added", "status_changed", etc.
+  description String
+  metadata    Json? // Additional context data
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id])
+
+  createdAt DateTime @default(now())
+
+  @@index([companyId, createdAt])
+  @@index([companyId, type])
+}
+
+model CompanyAssignment {
+  id          String  @id @default(cuid())
+  companyId   String
+  userId      String
+  role        String? // "Account Manager", "Sales Rep", "Support"
+  isPrimary   Boolean @default(false) // Primary contact for company
+  permissions Json? // {"canEdit": true, "canDelete": false}
+  notes       String? @db.Text
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  assignedAt DateTime @default(now())
+  assignedBy String? // Who assigned this user
+
+  @@unique([companyId, userId])
+  @@index([userId])
+  @@index([companyId, isPrimary])
+}
+
+model RoleColorSettings {
+  id             String @id @default(cuid())
+  organizationId String @unique
+  colors         Json // Stores role color mappings
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([organizationId])
+}
+
+model TimeEntry {
+  id          String    @id @default(cuid())
+  userId      String
+  companyId   String?
+  description String
+  startTime   DateTime
+  endTime     DateTime?
+  duration    Int // Duration in seconds
+  isRunning   Boolean   @default(false)
+  isInternal  Boolean   @default(false)
+  isBillable  Boolean   @default(true)
+
+  // Relations
+  user    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  company Company? @relation(fields: [companyId], references: [id], onDelete: SetNull)
+  task    Task?    @relation(fields: [taskId], references: [id], onDelete: SetNull)
+
+  taskId String?
+  tags   String? // Comma-separated tags
+  notes  String? @db.Text
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId, startTime])
+  @@index([companyId])
+  @@index([taskId])
+  @@index([isRunning])
+}
+
+model Task {
+  id             String  @id @default(cuid())
+  organizationId String
+  companyId      String?
+  name           String
+  description    String? @db.Text
+
+  // Enhanced fields for proper task management
+  assignedToId String?
+  reporterId   String
+  dueDate      DateTime?
+  startDate    DateTime?
+  completedAt  DateTime?
+
+  status         String       @default("TODO")
+  priority       TaskPriority @default(MEDIUM)
+  estimatedHours Float?
+  actualHours    Float?
+
+  // For kanban positioning
+  columnId    String? // Which kanban column
+  position    Int     @default(0)
+  columnOrder Int     @default(0)
+
+  // For subtasks
+  parentTaskId String?
+
+  // Additional metadata
+  labels       String? // JSON array of labels
+  customFields Json?
+
+  // Relations
+  organization Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  company      Company?           @relation(fields: [companyId], references: [id], onDelete: SetNull)
+  assignedTo   User?              @relation("TaskAssignee", fields: [assignedToId], references: [id])
+  reporter     User               @relation("TaskReporter", fields: [reporterId], references: [id])
+  parentTask   Task?              @relation("Subtasks", fields: [parentTaskId], references: [id])
+  subtasks     Task[]             @relation("Subtasks")
+  timeEntries  TimeEntry[]
+  comments     TaskComment[]
+  attachments  TaskAttachment[]
+  boardId      String?
+  board        KanbanBoardConfig? @relation(fields: [boardId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([organizationId])
+  @@index([companyId])
+  @@index([status])
+  @@index([assignedToId])
+  @@index([columnId, position])
+}
+
+model TaskComment {
+  id      String @id @default(cuid())
+  taskId  String
+  userId  String
+  content String @db.Text
+
+  task Task @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([taskId])
+}
+
+model TaskAttachment {
+  id       String @id @default(cuid())
+  taskId   String
+  userId   String
+  fileName String
+  fileUrl  String
+  fileSize Int
+  mimeType String
+
+  task Task @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id])
+
+  createdAt DateTime @default(now())
+
+  @@index([taskId])
+}
+
+// enum TaskStatus {
+//   TODO
+//   IN_PROGRESS
+//   REVIEW
+//   COMPLETED
+//   ARCHIVED
+// }
+
+enum TaskPriority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+model OrganizationDocument {
+  id             String  @id @default(cuid())
+  organizationId String
+  uploadedBy     String
+  category       String
+  fileName       String
+  fileSize       Int
+  fileUrl        String
+  mimeType       String
+  description    String? @db.Text
+
+  // Enhanced features
+  tags       String? // JSON array of tags
+  isStarred  Boolean @default(false)
+  isTemplate Boolean @default(false)
+  version    Int     @default(1)
+
+  // Metadata for advanced features
+  metadata Json? // Can store version history, permissions, etc.
+
+  // Relations
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user         User         @relation(fields: [uploadedBy], references: [id])
+
+  // Many-to-many relation with companies
+  companies DocumentCompanyLink[]
+
+  createdAt  DateTime     @default(now())
+  updatedAt  DateTime     @updatedAt
+  Membership Membership[]
+
+  @@index([organizationId, category])
+  @@index([organizationId, isTemplate])
+  @@index([organizationId, isStarred])
+  @@index([organizationId, createdAt])
+}
+
+// Junction table for document-company relationships
+model DocumentCompanyLink {
+  id         String @id @default(cuid())
+  documentId String
+  companyId  String
+
+  // Additional metadata for the link
+  linkedBy String
+  linkedAt DateTime @default(now())
+
+  document OrganizationDocument @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  company  Company              @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  user     User                 @relation(fields: [linkedBy], references: [id])
+
+  @@unique([documentId, companyId])
+  @@index([documentId])
+  @@index([companyId])
+}
+
+model OrganizationCategory {
+  id             String   @id @default(cuid())
+  organizationId String
+  name           String
+  description    String?
+  createdBy      String
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  creator      User         @relation(fields: [createdBy], references: [id])
+  Membership   Membership[]
+
+  @@unique([organizationId, name])
+  @@index([organizationId])
+}
+
+model KanbanBoardConfig {
+  id             String  @id @default(cuid())
+  organizationId String
+  companyId      String?
+  name           String  @default("Default Board")
+  settings       Json // Stores the entire settings object
+  isDefault      Boolean @default(false)
+  isPublic       Boolean @default(true) // If true, all company members can view
+  createdBy      String
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  company      Company?     @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  user         User         @relation(fields: [createdBy], references: [id])
+  tasks        Task[]
+  permissions  BoardPermission[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([organizationId, companyId, name])
+  @@index([organizationId])
+  @@index([companyId])
+}
+
+model BoardPermission {
+  id      String @id @default(cuid())
+  boardId String
+  userId  String
+  canView Boolean @default(true)
+  canEdit Boolean @default(false)
+  canManageMembers Boolean @default(false)
+
+  board KanbanBoardConfig @relation(fields: [boardId], references: [id], onDelete: Cascade)
+  user  User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([boardId, userId])
+  @@index([boardId])
+  @@index([userId])
+}
