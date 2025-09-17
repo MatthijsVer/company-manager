@@ -11,6 +11,7 @@ import Link from "next/link";
 import { CheckCircle } from "lucide-react";
 import { Badge } from "../ui/badge";
 import { cn } from "@/lib/utils";
+import RichNoteEditor from "./RichNoteEditor";
 
 type Company = { id: string; name: string; slug?: string | null };
 type CreatedTask = {
@@ -33,9 +34,8 @@ type ProposedTask = {
   name: string;
   description: string;
   dueDate: string;
-  // NEW fields for selects:
   assignedToId?: string | null;
-  assigneeEmail?: string; // preview compatibility; not used if assignedToId is set
+  assigneeEmail?: string;
   priority: string;
   companyId?: string | null;
   companyName: string;
@@ -64,8 +64,14 @@ export default function MeetingDetailEditor(props: {
 
   const [loadingPreview, setLoadingPreview] = useState(false);
   const [previewError, setPreviewError] = useState<string | null>(null);
+
+  // Plain summary text still used by your commit API
   const [summary, setSummary] = useState(initialSummary);
   const [decisions, setDecisions] = useState(initialDecisions ?? "");
+
+  // Rich HTML for minutes canvas (synced to summary plaintext)
+  const [minutesHTML, setMinutesHTML] = useState<string | null>(null);
+
   const [proposed, setProposed] = useState<ProposedTask[]>([]);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [dialogIndex, setDialogIndex] = useState<number>(0);
@@ -77,10 +83,9 @@ export default function MeetingDetailEditor(props: {
   } | null>(minutesDocInitial ?? null);
 
   const [users, setUsers] = useState<UserLite[]>([]);
-  const [availableLabels, setAvailableLabels] = useState<KanbanLabel[]>([]); // if you have a labels API, hydrate this
+  const [availableLabels, setAvailableLabels] = useState<KanbanLabel[]>([]);
 
   useEffect(() => {
-    // Users list (for assignee select)
     (async () => {
       try {
         const res = await fetch("/api/users");
@@ -97,12 +102,23 @@ export default function MeetingDetailEditor(props: {
         }
       } catch {}
     })();
+    // Optionally hydrate labels:
+    // (async () => { const r = await fetch("/api/labels"); if (r.ok) setAvailableLabels(await r.json()); })();
+  }, []);
 
-    // Optionally hydrate labels here if you have an endpoint:
-    // (async () => {
-    //   const res = await fetch("/api/labels");
-    //   if (res.ok) setAvailableLabels(await res.json());
-    // })();
+  // Seed the rich editor’s HTML from initial plain summary/decisions
+  useEffect(() => {
+    if (minutesHTML == null) {
+      const seed =
+        (initialSummary?.trim()
+          ? `<h3>Summary</h3><p>${initialSummary.replace(/\n/g, "<br/>").trim()}</p>`
+          : "") +
+        (initialDecisions?.trim()
+          ? `<h3>Decisions</h3><p>${initialDecisions.replace(/\n/g, "<br/>").trim()}</p>`
+          : "");
+      setMinutesHTML(seed || "<p></p>");
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const companyNames = useMemo(() => companies.map((c) => c.name), [companies]);
@@ -114,17 +130,17 @@ export default function MeetingDetailEditor(props: {
       const res = await fetch(`/api/meetings/${meetingId}/preview`);
       const json = await res.json();
       if (!res.ok) throw new Error(json?.error || "Failed to get preview");
+
+      // If no manual summary yet, take preview summary as seed
       if (!summary && json.summary) setSummary(json.summary);
 
       const tasks: ProposedTask[] = (json.tasks || []).map((t: any) => ({
         name: t.name || "",
         description: t.description || "",
         dueDate: t.dueDate || "",
-        // map preview's email (if any) but we'll use assignedToId from UI
         assigneeEmail: t.assigneeEmail || "",
         assignedToId: null,
         priority: t.priority || "MEDIUM",
-        // prefer selection; keep preview companyName as fallback for auto-create
         companyId: null,
         companyName: t.companyName || "",
         companySlug: t.companySlug || "",
@@ -141,11 +157,6 @@ export default function MeetingDetailEditor(props: {
     } finally {
       setLoadingPreview(false);
     }
-  }
-
-  function openEdit(i: number) {
-    setDialogIndex(i);
-    setDialogOpen(true);
   }
 
   function addDraft() {
@@ -198,12 +209,14 @@ export default function MeetingDetailEditor(props: {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
+          // Use the current plain summary (synced from the rich editor)
           summary,
           decisions,
           tasks,
           autoCreateCompanies: true,
           autoCreateContacts: true,
-          createMinutes: true, // <-- create minutes at commit
+          createMinutes: true,
+          minutesHTML: minutesHTML || undefined, // send rich HTML for the minutes doc
         }),
       });
       const json = await res.json();
@@ -238,6 +251,8 @@ export default function MeetingDetailEditor(props: {
   async function recreateMinutes() {
     const res = await fetch(`/api/meetings/${meetingId}/minutes`, {
       method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ html: minutesHTML || "<p></p>" }),
     });
     const json = await res.json();
     if (res.ok && json?.id) {
@@ -257,11 +272,11 @@ export default function MeetingDetailEditor(props: {
   ).length;
 
   return (
-    <div className="space-y-6 flex items-start">
-      <div className="flex flex-col  flex-1">
-        <section className="flex-1 p-4 bg-white">
-          <div className="flex items-center justify-between">
-            <h2 className="font-semibold">Summary</h2>
+    <div className="space-y-4 flex items-start">
+      <div className="flex flex-col flex-1">
+        <section className="flex-1">
+          <div className="flex items-center border-b p-4 justify-between">
+            <h2 className="font-semibold">Minutes (rich)</h2>
             <div className="flex gap-2">
               {minutesDoc ? (
                 <>
@@ -298,16 +313,26 @@ export default function MeetingDetailEditor(props: {
               </Button>
             </div>
           </div>
+
           {previewError && (
             <p className="text-sm text-red-600 mt-2">{previewError}</p>
           )}
-          <Textarea
-            value={summary}
-            onChange={(e) => setSummary(e.target.value)}
-            placeholder="Summary of the meeting…"
-            rows={6}
-            className="mt-3"
-          />
+
+          <div className="h-[60vh] px-4">
+            {/* Notion-style editor (keeps plain summary in sync) */}
+            {minutesHTML != null && (
+              <RichNoteEditor
+                initialHTML={minutesHTML}
+                onChangeHTML={(html, plain) => {
+                  setMinutesHTML(html);
+                  setSummary(plain.slice(0, 1500)); // keep a concise plain summary for APIs
+                }}
+                className="mt-3 border rounded-lg h-[60vh]"
+              />
+            )}
+          </div>
+
+          {/* Optional: keep Decisions as a simple textarea for now */}
           <div className="mt-4">
             <UILabel className="text-sm font-medium mb-2 block">
               Decisions (optional)
@@ -319,6 +344,7 @@ export default function MeetingDetailEditor(props: {
               rows={4}
             />
           </div>
+
           {commitMsg && <p className="text-sm mt-3">{commitMsg}</p>}
         </section>
       </div>
@@ -410,7 +436,6 @@ export default function MeetingDetailEditor(props: {
         </div>
 
         <div className="p-4 flex flex-col">
-          {/* Created tasks list (right now simple list kept below) */}
           {createdTasks?.length ? (
             <section>
               <h3 className="font-semibold text-sm mb-2">
@@ -437,7 +462,7 @@ export default function MeetingDetailEditor(props: {
         </div>
       </section>
 
-      {/* Dialog */}
+      {/* Draft edit dialog */}
       {proposed[dialogIndex] && (
         <DraftTaskDialog
           open={dialogOpen}
