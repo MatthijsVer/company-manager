@@ -231,3 +231,7 @@
 .bg-test {
   background-color: oklch(0.91 0 0);
 }
+
+button {
+  cursor: pointer;
+}

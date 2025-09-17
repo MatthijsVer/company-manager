@@ -4,10 +4,13 @@ import { useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Label as UILabel } from "@/components/ui/label";
-import { DraftTaskCard } from "./DraftTaskCard";
+import { DraftTaskCard, getPriorityColor } from "./DraftTaskCard";
 import { DraftTaskDialog } from "./DraftTaskDialog";
 import type { Label as KanbanLabel } from "@/types/kanban";
 import Link from "next/link";
+import { CheckCircle } from "lucide-react";
+import { Badge } from "../ui/badge";
+import { cn } from "@/lib/utils";
 
 type Company = { id: string; name: string; slug?: string | null };
 type CreatedTask = {
@@ -321,7 +324,7 @@ export default function MeetingDetailEditor(props: {
       </div>
 
       {/* Draft tasks */}
-      <section className="space-y-3 w-92 border-l h-full">
+      <section className="space-y-3 w-92 border-l h-full overflow-y-auto max-h-[87vh]">
         <div className="flex flex-col mb-0">
           <div className="flex flex-col p-4 border-b items-start justify-between">
             <h2 className="font-semibold">Draft tasks (review & edit)</h2>
@@ -413,16 +416,19 @@ export default function MeetingDetailEditor(props: {
               <h3 className="font-semibold text-sm mb-2">
                 Already created from this meeting
               </h3>
-              <ul className="space-y-2 text-sm">
+              <ul className="space-y-2 text-sm w-full mt-3">
                 {createdTasks.map((t) => (
-                  <li key={t.id} className="border rounded-lg p-3">
-                    <div className="font-medium">{t.name}</div>
-                    <div className="text-xs text-muted-foreground">
-                      {t.priority ?? "MEDIUM"}
-                      {t?.dueDate
-                        ? ` · due ${String(t.dueDate).slice(0, 10)}`
-                        : ""}
-                    </div>
+                  <li key={t.id} className="flex w-full items-center py-0.5">
+                    <CheckCircle className="size-3.5 mr-2" />
+                    <div className="font-medium text-xs mr-auto">{t.name}</div>
+                    <Badge
+                      className={cn(
+                        "text-[10px] px-2 py-0.5",
+                        getPriorityColor(t.priority || "MEDIUM")
+                      )}
+                    >
+                      {t.priority || "MEDIUM"}
+                    </Badge>
                   </li>
                 ))}
               </ul>

@@ -4,6 +4,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Calendar, Edit2, Trash2, Check } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { Avatar, AvatarFallback, AvatarImage } from "../ui/avatar";
 
 type ProposedTaskCardView = {
   name: string;
@@ -14,6 +15,21 @@ type ProposedTaskCardView = {
   companyName?: string;
   labels: string[];
   _selected?: boolean;
+};
+
+export const getPriorityColor = (priority: string) => {
+  switch (priority) {
+    case "URGENT":
+      return "bg-red-100 text-red-700 border-red-200";
+    case "HIGH":
+      return "bg-orange-100 text-orange-700 border-orange-200";
+    case "MEDIUM":
+      return "bg-yellow-100 text-yellow-700 border-yellow-200";
+    case "LOW":
+      return "bg-gray-100 text-gray-500 border-gray-200";
+    default:
+      return "bg-gray-100 text-gray-500 border-gray-200";
+  }
 };
 
 export function DraftTaskCard({
@@ -29,44 +45,27 @@ export function DraftTaskCard({
   onToggle: (checked: boolean) => void;
   onDelete?: () => void;
 }) {
-  const getPriorityColor = (priority: string) => {
-    switch (priority) {
-      case "URGENT":
-        return "bg-red-100 text-red-700 border-red-200";
-      case "HIGH":
-        return "bg-orange-100 text-orange-700 border-orange-200";
-      case "MEDIUM":
-        return "bg-yellow-100 text-yellow-700 border-yellow-200";
-      case "LOW":
-        return "bg-gray-100 text-gray-500 border-gray-200";
-      default:
-        return "bg-gray-100 text-gray-500 border-gray-200";
-    }
-  };
-
   return (
-    <div
-      className={cn(
-        "group relative rounded-2xl border p-4 bg-white",
-        task._selected
-          ? "ring-2 ring-[#FF6B4A] border-[#FF6B4A]/30"
-          : "border-gray-200"
+    <div className={cn("group relative rounded-2xl bg-white")}>
+      {task._selected && (
+        <button
+          onClick={() => onToggle(!task._selected)}
+          className={cn(
+            "absolute top-3 right-3 size-4 rounded-full border bg-white flex items-center justify-center shadow-sm",
+            task._selected
+              ? "border-[#FF6B4A] text-[#FF6B4A]"
+              : "border-gray-300 text-gray-300"
+          )}
+          aria-label="Select task"
+        >
+          <div className="bg-[#FF6b4A] size-2 rounded-full" />
+        </button>
       )}
-    >
-      <button
-        onClick={() => onToggle(!task._selected)}
-        className={cn(
-          "absolute -top-2 -left-2 h-6 w-6 rounded-full border bg-white flex items-center justify-center shadow-sm",
-          task._selected
-            ? "border-[#FF6B4A] text-[#FF6B4A]"
-            : "border-gray-300 text-gray-300"
-        )}
-        aria-label="Select task"
-      >
-        <Check className="h-3.5 w-3.5" />
-      </button>
 
-      <div className="flex items-start justify-between gap-3">
+      <div
+        className="flex items-start cursor-pointer p-4 justify-between gap-3"
+        onClick={() => onToggle(!task._selected)}
+      >
         <div className="flex-1">
           <div className="flex items-center gap-2 mb-1">
             <span className="text-[11px] text-gray-400">
@@ -118,27 +117,35 @@ export function DraftTaskCard({
             </div>
           ) : null}
         </div>
-
-        <div className="flex flex-col gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-          <Button
-            size="icon"
-            variant="ghost"
-            onClick={onEdit}
-            className="h-7 w-7"
-          >
-            <Edit2 className="h-3.5 w-3.5" />
-          </Button>
-          {onDelete && (
-            <Button
-              size="icon"
-              variant="ghost"
-              onClick={onDelete}
-              className="h-7 w-7 text-red-600"
-            >
-              <Trash2 className="h-3.5 w-3.5" />
-            </Button>
-          )}
+      </div>
+      <div className="w-full rounded-b-2xl bg-[#FAFAFA] px-4 py-0.5 flex items-center justify-end">
+        <div className="flex items-center mr-auto">
+          <Avatar className="size-5.5">
+            <AvatarImage />
+            <AvatarFallback className="bg-[#222222] text-white text-[9px] font-semibold">
+              MA
+            </AvatarFallback>
+          </Avatar>
+          <p className="text-xs text-gray-900 font-medium ml-2">Unassigned</p>
         </div>
+        <Button
+          variant="ghost"
+          onClick={onEdit}
+          className="text-gray-900 text-xs"
+        >
+          <Edit2 className="size-3" />
+          Edit
+        </Button>
+        {onDelete && (
+          <Button
+            variant="ghost"
+            onClick={onDelete}
+            className="text-gray-900 text-xs"
+          >
+            <Trash2 className="size-3" />
+            Delete
+          </Button>
+        )}
       </div>
     </div>
   );
