@@ -71,7 +71,23 @@ export async function GET(
       ],
     });
 
-    return NextResponse.json({ tasks });
+    // Transform tasks to parse labels JSON
+    const transformedTasks = tasks.map(task => {
+      let parsedLabels = [];
+      try {
+        parsedLabels = task.labels ? JSON.parse(task.labels) : [];
+      } catch (error) {
+        console.error("Failed to parse task labels:", error, task.labels);
+        parsedLabels = [];
+      }
+      
+      return {
+        ...task,
+        labels: parsedLabels
+      };
+    });
+
+    return NextResponse.json({ tasks: transformedTasks });
   } catch (error) {
     console.error("Failed to fetch board tasks:", error);
     return NextResponse.json(

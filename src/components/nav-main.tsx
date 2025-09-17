@@ -2,7 +2,6 @@
 
 import {
   ChevronRight,
-  Dot,
   type LucideIcon,
   LayoutDashboard,
   ChartGantt,
@@ -266,7 +265,24 @@ export function NavMain({ items }: { items: NavItem[] }) {
       <SidebarMenu>
         {items.map((item) => {
           const isProjectsMenu = item.title === "Projecten";
+          const hasSubItems =
+            (item.items && item.items.length > 0) || isProjectsMenu;
 
+          // For items without subitems (and not the projects menu), render as a direct link
+          if (!hasSubItems) {
+            return (
+              <SidebarMenuItem key={item.title}>
+                <SidebarMenuButton asChild tooltip={item.title}>
+                  <Link href={item.url}>
+                    {item.icon && <item.icon />}
+                    <span>{item.title}</span>
+                  </Link>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+            );
+          }
+
+          // For items with subitems or the projects menu, render as collapsible
           return (
             <Collapsible
               key={item.title}
@@ -281,11 +297,7 @@ export function NavMain({ items }: { items: NavItem[] }) {
               <SidebarMenuItem>
                 <CollapsibleTrigger asChild>
                   <SidebarMenuButton tooltip={item.title}>
-                    {item.items?.length > 0 || isProjectsMenu ? (
-                      <ChevronRight className="transition-transform duration-200 group-data-[state=open]/collapsible:rotate-90" />
-                    ) : (
-                      <Dot className="transition-transform duration-200 group-data-[state=open]/collapsible:rotate-90" />
-                    )}
+                    <ChevronRight className="transition-transform duration-200 group-data-[state=open]/collapsible:rotate-90" />
                     {item.icon && <item.icon />}
                     <span className="flex-1">{item.title}</span>
                   </SidebarMenuButton>

@@ -112,6 +112,10 @@ model User {
   organizationCategories OrganizationCategory[]
 
   KanbanBoardConfig KanbanBoardConfig[]
+
+  Meeting Meeting[]
+
+  MeetingParticipant MeetingParticipant[]
 }
 
 /**
@@ -158,6 +162,8 @@ model Organization {
   OrganizationCategory OrganizationCategory[]
 
   KanbanBoardConfig KanbanBoardConfig[]
+
+  Meeting Meeting[]
 }
 
 model Membership {
@@ -302,6 +308,7 @@ model Company {
   tasks             Task[]
   linkedDocuments   DocumentCompanyLink[]
   KanbanBoardConfig KanbanBoardConfig[]
+  Meeting           Meeting[]
 
   @@unique([organizationId, slug])
   @@index([organizationId])
@@ -366,6 +373,9 @@ model CompanyNote {
   company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
   user    User    @relation(fields: [userId], references: [id])
 
+  meetingId String?
+  meeting   Meeting? @relation(fields: [meetingId], references: [id], onDelete: SetNull)
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -388,8 +398,9 @@ model CompanyContact {
 
   company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
 
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt          DateTime             @default(now())
+  updatedAt          DateTime             @updatedAt
+  MeetingParticipant MeetingParticipant[]
 
   @@index([companyId])
   @@index([email])
@@ -541,6 +552,9 @@ model Task {
   boardId      String?
   board        KanbanBoardConfig? @relation(fields: [boardId], references: [id])
 
+  meetingId String?
+  meeting   Meeting? @relation(fields: [meetingId], references: [id], onDelete: SetNull)
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -681,9 +695,9 @@ model KanbanBoardConfig {
   isPublic       Boolean @default(true) // If true, all company members can view
   createdBy      String
 
-  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  company      Company?     @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  user         User         @relation(fields: [createdBy], references: [id])
+  organization Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  company      Company?          @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  user         User              @relation(fields: [createdBy], references: [id])
   tasks        Task[]
   permissions  BoardPermission[]
 
@@ -696,11 +710,11 @@ model KanbanBoardConfig {
 }
 
 model BoardPermission {
-  id      String @id @default(cuid())
-  boardId String
-  userId  String
-  canView Boolean @default(true)
-  canEdit Boolean @default(false)
+  id               String  @id @default(cuid())
+  boardId          String
+  userId           String
+  canView          Boolean @default(true)
+  canEdit          Boolean @default(false)
   canManageMembers Boolean @default(false)
 
   board KanbanBoardConfig @relation(fields: [boardId], references: [id], onDelete: Cascade)
@@ -712,4 +726,113 @@ model BoardPermission {
   @@unique([boardId, userId])
   @@index([boardId])
   @@index([userId])
+}
+
+enum MeetingStatus {
+  RECORDED
+  TRANSCRIBED
+  PROCESSED
+  FAILED
+}
+
+model Meeting {
+  id                    String        @id @default(cuid())
+  organizationId        String
+  companyId             String?
+  title                 String?
+  language              String?       @default("en")
+  audioUrl              String?
+  transcriptionProvider String?
+  status                MeetingStatus @default(RECORDED)
+  startedAt             DateTime      @default(now())
+  endedAt               DateTime?
+  createdBy             String
+
+  organization Organization        @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  company      Company?            @relation(fields: [companyId], references: [id], onDelete: SetNull)
+  creator      User                @relation(fields: [createdBy], references: [id])
+  segments     TranscriptSegment[]
+  tasks        Task[]
+  notes        CompanyNote[]
+
+  createdAt          DateTime             @default(now())
+  updatedAt          DateTime             @updatedAt
+  AiJob              AiJob[]
+  MeetingExtraction  MeetingExtraction[]
+  MeetingParticipant MeetingParticipant[]
+
+  @@index([organizationId, status])
+}
+
+model TranscriptSegment {
+  id        String  @id @default(cuid())
+  meetingId String
+  startSec  Float
+  endSec    Float
+  speaker   String? // or "S1/S2/Unknown"
+  text      String  @db.Text
+
+  meeting Meeting @relation(fields: [meetingId], references: [id], onDelete: Cascade)
+
+  @@index([meetingId, startSec])
+}
+
+model MeetingParticipant {
+  id          String  @id @default(cuid())
+  meetingId   String
+  userId      String?
+  contactId   String?
+  displayName String? // "Alice", "Bob", etc.
+  email       String?
+  speakerTag  String? // "S0", "S1" from diarization
+
+  meeting Meeting         @relation(fields: [meetingId], references: [id], onDelete: Cascade)
+  user    User?           @relation(fields: [userId], references: [id], onDelete: SetNull)
+  contact CompanyContact? @relation(fields: [contactId], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([meetingId])
+  @@index([email])
+}
+
+enum ExtractionStatus {
+  PENDING
+  COMPLETE
+  FAILED
+}
+
+model MeetingExtraction {
+  id        String           @id @default(cuid())
+  meetingId String           @unique
+  version   Int              @default(1)
+  summary   String?          @db.Text
+  decisions String?          @db.Text
+  payload   Json? // full structured JSON (tasks, topics, entities)
+  status    ExtractionStatus @default(PENDING)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  meeting Meeting @relation(fields: [meetingId], references: [id], onDelete: Cascade)
+}
+
+model AiJob {
+  id           String    @id @default(cuid())
+  meetingId    String?
+  kind         String // "transcribe" | "extract"
+  provider     String // "deepgram" | "openai"
+  model        String
+  inputTokens  Int?
+  outputTokens Int?
+  costMicros   Int? // store in micros to avoid float
+  status       String    @default("DONE")
+  error        String?
+  startedAt    DateTime  @default(now())
+  finishedAt   DateTime?
+
+  meeting Meeting? @relation(fields: [meetingId], references: [id], onDelete: SetNull)
+
+  @@index([meetingId])
 }

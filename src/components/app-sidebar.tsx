@@ -62,37 +62,19 @@ const data = {
   navMain: [
     {
       title: "Dashboard",
-      url: "/",
+      url: "/dashboard",
       icon: Gauge,
       isActive: true,
+    },
+    {
+      title: "Planning",
+      url: "/dashboard/planning",
+      icon: ChartGantt,
     },
     {
       title: "Projecten",
       url: "/dashboard/projects",
       icon: Tag,
-    },
-    {
-      title: "Planning",
-      url: "#",
-      icon: ChartGantt,
-      items: [
-        {
-          title: "Introduction",
-          url: "#",
-        },
-        {
-          title: "Get Started",
-          url: "#",
-        },
-        {
-          title: "Tutorials",
-          url: "#",
-        },
-        {
-          title: "Changelog",
-          url: "#",
-        },
-      ],
     },
     {
       title: "Documenten",

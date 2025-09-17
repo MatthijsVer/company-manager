@@ -67,7 +67,23 @@ export async function GET(
       ],
     });
 
-    return NextResponse.json({ tasks });
+    // Transform tasks to parse labels JSON
+    const transformedTasks = tasks.map((task: any) => {
+      let parsedLabels = [];
+      try {
+        parsedLabels = task.labels ? JSON.parse(task.labels) : [];
+      } catch (error) {
+        console.error("Failed to parse task labels:", error, task.labels);
+        parsedLabels = [];
+      }
+      
+      return {
+        ...task,
+        labels: parsedLabels
+      };
+    });
+
+    return NextResponse.json({ tasks: transformedTasks });
   } catch (error) {
     console.error("Failed to fetch tasks:", error);
     return NextResponse.json(
@@ -147,7 +163,7 @@ export async function POST(
         dueDate: body.dueDate ? new Date(body.dueDate) : null,
         startDate: body.startDate ? new Date(body.startDate) : null,
         estimatedHours: body.estimatedHours || null,
-        labels: body.labels || null,
+        labels: body.labels ? JSON.stringify(body.labels) : null,
         customFields: body.customFields || null,
         columnOrder: (highestOrder?.columnOrder || 0) + 1,
       },

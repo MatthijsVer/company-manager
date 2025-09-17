@@ -21,6 +21,7 @@ import { BoardSettings, Task } from "@/types/kanban";
 import { CreateBoardDialog } from "./create-board-dialog";
 import { BoardPermissionsPopover } from "@/components/kanban/board-permissions-popover";
 import { AddColumnPopover } from "@/components/kanban/add-column-popover";
+import { KanbanSettingsPopover } from "@/components/kanban/kanban-settings";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -219,6 +220,26 @@ export function MultiBoardView({
     }
   };
 
+  const handleUpdateBoardSettings = async (boardId: string, newSettings: BoardSettings) => {
+    try {
+      const res = await fetch(`/api/companies/${companyId}/boards/${boardId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ settings: newSettings }),
+      });
+
+      if (res.ok) {
+        toast.success("Board settings updated");
+        await fetchBoards();
+      } else {
+        throw new Error("Failed to update board settings");
+      }
+    } catch (error) {
+      console.error("Failed to update board settings:", error);
+      toast.error("Failed to update board settings");
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-full">
@@ -372,6 +393,12 @@ export function MultiBoardView({
                   </div>
 
                   <div className="flex items-center gap-2">
+                    {/* Board Settings - Available to all users */}
+                    <KanbanSettingsPopover
+                      settings={board.settings}
+                      onUpdateSettings={(newSettings) => handleUpdateBoardSettings(board.id, newSettings)}
+                    />
+                    
                     {canCreateBoards && (
                       <>
                         <AddColumnPopover
@@ -387,6 +414,7 @@ export function MultiBoardView({
                         />
                       </>
                     )}
+                    
                     <Button
                       variant="ghost"
                       size="sm"
@@ -395,6 +423,7 @@ export function MultiBoardView({
                       <EyeOff className="h-4 w-4" />
                       Hide
                     </Button>
+                    
                     {canCreateBoards && !board.isDefault && (
                       <Button
                         variant="ghost"

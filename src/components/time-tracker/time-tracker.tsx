@@ -172,12 +172,16 @@ export function TimeTrackerPopover({
       const date = format(selectedDate, "yyyy-MM-dd");
       const res = await fetch(`/api/time-entries?date=${date}`);
       if (res.ok) {
-        const entries = await res.json();
-        setTodayEntries(entries);
+        const data = await res.json();
+        // Handle both { entries: [...] } and direct array responses
+        const entries = data.entries || data;
+        // Ensure it's always an array
+        setTodayEntries(Array.isArray(entries) ? entries : []);
       }
     } catch (error) {
       console.error("Failed to fetch time entries:", error);
       toast.error("Failed to load time entries");
+      setTodayEntries([]); // Set to empty array on error
     } finally {
       setLoading(false);
     }
@@ -187,9 +191,13 @@ export function TimeTrackerPopover({
     try {
       const res = await fetch("/api/time-entries?isRunning=true");
       if (res.ok) {
-        const entries = await res.json();
-        if (entries.length > 0) {
-          const running = entries[0];
+        const data = await res.json();
+        // Handle both { entries: [...] } and direct array responses
+        const entries = data.entries || data;
+        const entriesArray = Array.isArray(entries) ? entries : [];
+
+        if (entriesArray.length > 0) {
+          const running = entriesArray[0];
           setCurrentRunningId(running.id);
           setIsRunning(true);
           setDescription(running.description);
@@ -328,8 +336,10 @@ export function TimeTrackerPopover({
   };
 
   const todayTotal =
-    todayEntries.reduce((acc, entry) => acc + entry.duration, 0) +
-    (isRunning ? time : 0);
+    (Array.isArray(todayEntries) ? todayEntries : []).reduce(
+      (acc, entry) => acc + entry.duration,
+      0
+    ) + (isRunning ? time : 0);
 
   return (
     <>

@@ -120,6 +120,7 @@ export function KanbanSettingsPopover({
           showComments: true,
           showAttachments: true,
           showEstimate: false,
+          showLabels: true,
           cardHeight: "normal",
           borderRadius: "1rem",
           shadow: "shadow-sm",
@@ -318,6 +319,7 @@ export function KanbanSettingsPopover({
                   showComments: "Comments Count",
                   showAttachments: "Attachments Count",
                   showEstimate: "Time Estimate",
+                  showLabels: "Task Labels",
                 }).map(([key, label]) => (
                   <div
                     key={key}
@@ -479,8 +481,9 @@ export function KanbanSettingsPopover({
   return (
     <Popover open={isOpen} onOpenChange={setIsOpen}>
       <PopoverTrigger asChild>
-        <Button variant="outline" size="icon" className="relative">
+        <Button variant="ghost" size="sm" className="h-8">
           <Settings className="h-4 w-4" />
+          Settings
           {hasChanges && (
             <span className="absolute -top-0.5 -right-0.5 h-2 w-2 rounded-full bg-[#FF6B4A]" />
           )}

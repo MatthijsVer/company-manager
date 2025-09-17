@@ -37,7 +37,21 @@ export async function GET(
       return NextResponse.json({ error: "Task not found" }, { status: 404 });
     }
 
-    return NextResponse.json(task);
+    // Transform task to parse labels JSON
+    let parsedLabels = [];
+    try {
+      parsedLabels = task.labels ? JSON.parse(task.labels) : [];
+    } catch (error) {
+      console.error("Failed to parse task labels:", error, task.labels);
+      parsedLabels = [];
+    }
+    
+    const transformedTask = {
+      ...task,
+      labels: parsedLabels
+    };
+
+    return NextResponse.json(transformedTask);
   } catch (error) {
     console.error("Failed to fetch task:", error);
     return NextResponse.json(
@@ -54,7 +68,12 @@ export async function PATCH(
   try {
     const session = await requireAuth();
     const body = await req.json();
-    const { id } = await params
+    const { id } = await params;
+    
+    // Debug logging for labels
+    if (body.labels) {
+      console.log("Updating task with labels:", body.labels);
+    }
 
     const task = await prisma.task.update({
       where: {
@@ -71,11 +90,26 @@ export async function PATCH(
         estimatedHours: body.estimatedHours,
         position: body.position,
         columnOrder: body.columnOrder,
+        ...(body.labels !== undefined && { labels: JSON.stringify(body.labels) }),
         completedAt: body.status === "COMPLETED" ? new Date() : null,
       },
     });
 
-    return NextResponse.json(task);
+    // Transform updated task to parse labels JSON
+    let parsedLabels = [];
+    try {
+      parsedLabels = task.labels ? JSON.parse(task.labels) : [];
+    } catch (error) {
+      console.error("Failed to parse updated task labels:", error, task.labels);
+      parsedLabels = [];
+    }
+    
+    const transformedTask = {
+      ...task,
+      labels: parsedLabels
+    };
+
+    return NextResponse.json(transformedTask);
   } catch (error) {
     console.error("Failed to update task:", error);
     return NextResponse.json(

@@ -1,3 +1,4 @@
+// app/api/time-entries/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/lib/auth/session";
 import { prisma } from "@/lib/db";
@@ -6,31 +7,29 @@ import { prisma } from "@/lib/db";
 export async function GET(req: NextRequest) {
   try {
     const session = await requireAuth();
-    
     const searchParams = req.nextUrl.searchParams;
     const date = searchParams.get("date");
     const companyId = searchParams.get("companyId");
     const isRunning = searchParams.get("isRunning");
-    
+
     // Build filter conditions
     const where: any = { userId: session.userId };
-    
+
     if (date) {
       const startOfDay = new Date(date);
       startOfDay.setHours(0, 0, 0, 0);
       const endOfDay = new Date(date);
       endOfDay.setHours(23, 59, 59, 999);
-      
       where.startTime = {
         gte: startOfDay,
         lte: endOfDay,
       };
     }
-    
+
     if (companyId) {
       where.companyId = companyId;
     }
-    
+
     if (isRunning !== null) {
       where.isRunning = isRunning === "true";
     }
@@ -55,7 +54,8 @@ export async function GET(req: NextRequest) {
       orderBy: { startTime: "desc" },
     });
 
-    return NextResponse.json(entries);
+    // CHANGE: Wrap the entries in an object with 'entries' property
+    return NextResponse.json({ entries });
   } catch (error) {
     console.error("Failed to fetch time entries:", error);
     return NextResponse.json(
@@ -65,12 +65,12 @@ export async function GET(req: NextRequest) {
   }
 }
 
-// POST - Create new time entry
+// POST - Create new time entry (no changes needed)
 export async function POST(req: NextRequest) {
   try {
     const session = await requireAuth();
-    
     const body = await req.json();
+
     const {
       description,
       companyId,

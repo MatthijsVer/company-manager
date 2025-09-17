@@ -32,6 +32,7 @@ import { CompanyTeamManager } from "@/components/companies/details/company-team-
 import { CompanyTasks } from "@/components/companies/details/company-tasks";
 import { KanbanBoard } from "@/components/companies/details/company-kanban";
 import { MultiBoardView } from "@/components/companies/details/multi-board-view";
+import TimelinePage from "@/components/companies/details/timeline-view";
 
 interface Company {
   id: string;
@@ -283,7 +284,7 @@ export default function CompanyDetailPage() {
             </TabsContent>
 
             <TabsContent value="planning" className="mt-0">
-              hey
+              <TimelinePage params={params} />
             </TabsContent>
 
             <TabsContent value="tasks" className="mt-0 h-full">

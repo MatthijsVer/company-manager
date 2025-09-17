@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import { Label as LabelComponent } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -59,6 +59,9 @@ import {
 import { format, formatDistanceToNow } from "date-fns";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
+import { Task, Label } from "@/types/kanban";
+import { LabelManager } from "@/components/kanban/label-manager";
+import { TaskLabels } from "@/components/kanban/task-label";
 
 interface TaskDetailSlideProps {
   task: any | null;
@@ -96,6 +99,7 @@ export function TaskDetailSlide({
     startDate: null as Date | null,
     dueDate: null as Date | null,
     estimatedHours: "",
+    labels: [] as Label[],
   });
 
   useEffect(() => {
@@ -112,6 +116,7 @@ export function TaskDetailSlide({
           startDate: null,
           dueDate: null,
           estimatedHours: "",
+          labels: [],
         });
         setComments([]);
         setAttachments([]);
@@ -127,6 +132,7 @@ export function TaskDetailSlide({
           startDate: task.startDate ? new Date(task.startDate) : null,
           dueDate: task.dueDate ? new Date(task.dueDate) : null,
           estimatedHours: task.estimatedHours?.toString() || "",
+          labels: task.labels || [],
         });
         fetchTaskDetails();
       }
@@ -471,6 +477,15 @@ export function TaskDetailSlide({
                   </div>
                 </>
               )}
+              {!isCreating && formData.labels.length > 0 && (
+                <div className="mt-3">
+                  <TaskLabels
+                    labels={formData.labels}
+                    maxVisible={3}
+                    size="sm"
+                  />
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -480,9 +495,9 @@ export function TaskDetailSlide({
             <div className="p-6 pt-0 space-y-6 mt-0">
               {/* Description */}
               <div>
-                <Label className="text-sm font-medium mb-2 block">
+                <LabelComponent className="text-sm font-medium mb-2 block">
                   Description
-                </Label>
+                </LabelComponent>
                 {isEditMode ? (
                   <Textarea
                     value={formData.description}
@@ -505,9 +520,9 @@ export function TaskDetailSlide({
               {/* Fields Grid */}
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <Label className="text-sm font-medium mb-2 block">
+                  <LabelComponent className="text-sm font-medium mb-2 block">
                     Status
-                  </Label>
+                  </LabelComponent>
                   {isEditMode ? (
                     <Select
                       value={formData.status}
@@ -535,9 +550,9 @@ export function TaskDetailSlide({
                 </div>
 
                 <div>
-                  <Label className="text-sm font-medium mb-2 block">
+                  <LabelComponent className="text-sm font-medium mb-2 block">
                     Priority
-                  </Label>
+                  </LabelComponent>
                   {isEditMode ? (
                     <Select
                       value={formData.priority}
@@ -571,9 +586,9 @@ export function TaskDetailSlide({
                 </div>
 
                 <div>
-                  <Label className="text-sm font-medium mb-2 block">
+                  <LabelComponent className="text-sm font-medium mb-2 block">
                     Assignee
-                  </Label>
+                  </LabelComponent>
                   {isEditMode ? (
                     <Select
                       value={formData.assignedToId}
@@ -637,9 +652,9 @@ export function TaskDetailSlide({
                 </div>
 
                 <div>
-                  <Label className="text-sm font-medium mb-2 block">
+                  <LabelComponent className="text-sm font-medium mb-2 block">
                     Due Date
-                  </Label>
+                  </LabelComponent>
                   {isEditMode ? (
                     <Popover>
                       <PopoverTrigger asChild>
@@ -676,9 +691,9 @@ export function TaskDetailSlide({
                 </div>
 
                 <div>
-                  <Label className="text-sm font-medium mb-2 block">
+                  <LabelComponent className="text-sm font-medium mb-2 block">
                     Start Date
-                  </Label>
+                  </LabelComponent>
                   {isEditMode ? (
                     <Popover>
                       <PopoverTrigger asChild>
@@ -718,9 +733,9 @@ export function TaskDetailSlide({
                 </div>
 
                 <div>
-                  <Label className="text-sm font-medium mb-2 block">
+                  <LabelComponent className="text-sm font-medium mb-2 block">
                     Estimated Hours
-                  </Label>
+                  </LabelComponent>
                   {isEditMode ? (
                     <Input
                       type="number"
@@ -742,6 +757,36 @@ export function TaskDetailSlide({
                     </p>
                   )}
                 </div>
+              </div>
+
+              {/* Labels */}
+              <div>
+                <LabelComponent className="text-sm font-medium mb-3 block">
+                  Labels
+                </LabelComponent>
+                {isEditMode ? (
+                  <LabelManager
+                    selectedLabels={formData.labels}
+                    onLabelsChange={(labels) =>
+                      setFormData({ ...formData, labels })
+                    }
+                    availableLabels={[]}
+                  />
+                ) : (
+                  <div className="space-y-2">
+                    {formData.labels.length > 0 ? (
+                      <TaskLabels
+                        labels={formData.labels}
+                        maxVisible={5}
+                        size="md"
+                      />
+                    ) : (
+                      <p className="text-sm text-gray-600">
+                        No labels assigned
+                      </p>
+                    )}
+                  </div>
+                )}
               </div>
 
               {/* Only show timestamps if not creating */}
@@ -847,7 +892,7 @@ export function TaskDetailSlide({
                     className="hidden"
                     id="file-upload"
                   />
-                  <Label
+                  <LabelComponent
                     htmlFor="file-upload"
                     className={cn(
                       "flex flex-col items-center justify-center gap-2 h-32 border-2 border-dashed rounded-lg cursor-pointer hover:bg-gray-50 transition-colors",
@@ -858,7 +903,7 @@ export function TaskDetailSlide({
                     <span className="text-sm text-gray-600">
                       {uploadingFile ? "Uploading..." : "Click to upload files"}
                     </span>
-                  </Label>
+                  </LabelComponent>
 
                   <div className="mt-6 space-y-2">
                     {attachments.length === 0 ? (

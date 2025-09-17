@@ -64,7 +64,7 @@ export function NavUser({ user: initialUser }: { user: User }) {
       <SidebarMenuItem>
         <div className="relative">
           {/* Timer Button */}
-          <div className="absolute right-12 top-1/2 -translate-y-1/2 z-10">
+          <div className="absolute right-10 top-1/2 -translate-y-1/2 z-10">
             <TimeTrackerPopover open={openTimer} onOpenChange={setOpenTimer}>
               <button
                 className="size-7 rounded-full bg-transparent hover:bg-black/10 transition text-black cursor-pointer flex items-center justify-center"

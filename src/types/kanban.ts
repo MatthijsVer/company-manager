@@ -1,3 +1,9 @@
+export interface Label {
+  id: string;
+  name: string;
+  color: string;
+}
+
 export interface Task {
     id: string;
     name: string;
@@ -21,6 +27,7 @@ export interface Task {
     estimatedHours?: number;
     position: number;
     columnOrder: number;
+    labels?: Label[];
     _count?: {
       comments: number;
       attachments: number;
@@ -50,6 +57,7 @@ export interface Task {
     showComments: boolean;
     showAttachments: boolean;
     showEstimate: boolean;
+    showLabels: boolean;
     cardHeight: "compact" | "normal" | "expanded";
     borderRadius: string;
     shadow: string;

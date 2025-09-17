@@ -6,7 +6,12 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "redis:start": "docker run -d -p 6379:6379 --name redis-dev redis:alpine",
+    "redis:stop": "docker stop redis-dev && docker rm redis-dev",
+    "redis:cli": "docker exec -it redis-dev redis-cli",
+    "dev:with-cache": "concurrently \"npm run redis:start\" \"npm run dev\"",
+    "cache:flush": "node scripts/flush-cache.js"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.887.0",
@@ -51,7 +56,9 @@
     "csv-parse": "^6.1.0",
     "date-fns": "^4.1.0",
     "embla-carousel-react": "^8.6.0",
+    "gantt-task-react": "^0.3.9",
     "input-otp": "^1.4.2",
+    "ioredis": "^5.7.0",
     "jose": "^6.1.0",
     "jsonwebtoken": "^9.0.2",
     "lucide-react": "^0.542.0",

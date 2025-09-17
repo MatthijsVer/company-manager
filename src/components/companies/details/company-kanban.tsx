@@ -246,29 +246,77 @@ export function KanbanBoard({
         }
       }
 
-      // Optimistically update UI
-      const newTasks = Array.from(tasks);
-      const movedTask = { ...task, status: destination.droppableId };
+      // Get tasks for both source and destination columns
+      const sourceTasks = tasks
+        .filter((t) => t.status === source.droppableId)
+        .sort((a, b) => (a.columnOrder || 0) - (b.columnOrder || 0));
 
-      const updatedTasks = newTasks.map((t) => {
-        if (t.id === task.id) {
-          return movedTask;
-        }
-        return t;
-      });
+      const destTasks = tasks
+        .filter((t) => t.status === destination.droppableId)
+        .sort((a, b) => (a.columnOrder || 0) - (b.columnOrder || 0));
+
+      let updatedTasks = [...tasks];
+
+      if (source.droppableId === destination.droppableId) {
+        // Reordering within the same column
+        const reorderedTasks = [...sourceTasks];
+        const [movedTask] = reorderedTasks.splice(source.index, 1);
+        reorderedTasks.splice(destination.index, 0, movedTask);
+
+        // Update columnOrder for all tasks in this column
+        reorderedTasks.forEach((task, index) => {
+          const taskIndex = updatedTasks.findIndex((t) => t.id === task.id);
+          if (taskIndex !== -1) {
+            updatedTasks[taskIndex] = { ...task, columnOrder: index };
+          }
+        });
+      } else {
+        // Moving between different columns
+        // Update source column orders
+        const remainingSourceTasks = sourceTasks.filter((t) => t.id !== task.id);
+        remainingSourceTasks.forEach((task, index) => {
+          const taskIndex = updatedTasks.findIndex((t) => t.id === task.id);
+          if (taskIndex !== -1) {
+            updatedTasks[taskIndex] = { ...task, columnOrder: index };
+          }
+        });
+
+        // Update destination column orders
+        const newDestTasks = [...destTasks];
+        const movedTask = { ...task, status: destination.droppableId, columnOrder: destination.index };
+        newDestTasks.splice(destination.index, 0, movedTask);
+
+        newDestTasks.forEach((task, index) => {
+          const taskIndex = updatedTasks.findIndex((t) => t.id === task.id);
+          if (taskIndex !== -1) {
+            updatedTasks[taskIndex] = { ...task, columnOrder: index };
+          }
+        });
+      }
 
       setTasks(updatedTasks);
 
-      // Update in backend
+      // Update in backend - batch update all affected tasks
       try {
-        await fetch(`/api/tasks/${draggableId}`, {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            status: destination.droppableId,
-            columnOrder: destination.index,
-          }),
-        });
+        const tasksToUpdate = source.droppableId === destination.droppableId 
+          ? updatedTasks.filter((t) => t.status === source.droppableId)
+          : [
+              ...updatedTasks.filter((t) => t.status === source.droppableId),
+              ...updatedTasks.filter((t) => t.status === destination.droppableId)
+            ];
+
+        const updatePromises = tasksToUpdate.map((task) =>
+          fetch(`/api/tasks/${task.id}`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              status: task.status,
+              columnOrder: task.columnOrder,
+            }),
+          })
+        );
+
+        await Promise.all(updatePromises);
       } catch (error) {
         console.error("Failed to update task:", error);
         toast.error("Failed to move task");

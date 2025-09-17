@@ -55,6 +55,7 @@ import {
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 import { BoardSettings, Task, ColumnConfig } from "@/types/kanban";
+import { TaskLabels } from "./task-label";
 
 interface KanbanColumnProps {
   column: ColumnConfig;
@@ -483,6 +484,27 @@ export function KanbanColumn({
                             <p className="text-xs text-gray-500 mb-2 line-clamp-2">
                               {task.description}
                             </p>
+                          )}
+
+                        {/* Task Labels */}
+                        {settings.cardStyle.showLabels !== false &&
+                          task.labels &&
+                          task.labels.length > 0 && (
+                            <div className="mb-2 mt-2">
+                              <TaskLabels
+                                labels={task.labels}
+                                maxVisible={
+                                  settings.cardStyle.cardHeight === "compact"
+                                    ? 2
+                                    : 3
+                                }
+                                size={
+                                  settings.cardStyle.cardHeight === "compact"
+                                    ? "sm"
+                                    : "sm"
+                                }
+                              />
+                            </div>
                           )}
 
                         {/* Task Footer */}
