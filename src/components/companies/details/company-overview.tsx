@@ -301,7 +301,7 @@ export function CompanyOverview({
                 <div className="flex items-center gap-4">
                   <div
                     className="w-16 h-16 rounded-full flex items-center justify-center text-white font-bold text-xl"
-                    style={{ backgroundColor: company.color || "#222222" }}
+                    style={{ backgroundColor: company.color || "#1F1F1F" }}
                   >
                     {formData.name.substring(0, 2).toUpperCase()}
                   </div>

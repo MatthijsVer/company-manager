@@ -266,7 +266,7 @@ export function DailyTasks({
   }
 
   return (
-    <Card className="h-fit rounded-3xl border-none bg-white">
+    <Card className="h-full rounded-3xl border-none bg-white">
       <CardHeader className="pb-0">
         <div className="flex justify-between items-center">
           <h3 className="uppercase font-semibold">Daily Tasks</h3>

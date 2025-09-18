@@ -426,7 +426,7 @@ export function CompanyContacts({
               {contact.department && (
                 <Badge
                   variant="outline"
-                  className="h-5 px-1.5 bg-[#222222] text-white border-[#222222] text-[10px]"
+                  className="h-5 px-1.5 bg-[#1F1F1F] text-white border-[#1F1F1F] text-[10px]"
                 >
                   {contact.department}
                 </Badge>
@@ -481,7 +481,7 @@ export function CompanyContacts({
             Contacts
             <Badge
               variant="secondary"
-              className="ml-2 font-normal text-white bg-[#222222]"
+              className="ml-2 font-normal text-white bg-[#1F1F1F]"
             >
               {contacts.length}
             </Badge>

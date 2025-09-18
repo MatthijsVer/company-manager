@@ -353,7 +353,7 @@ export function CompanyTeamManager({
                         handleUserToggle(user.id, checked as boolean)
                       }
                       disabled={isProcessing}
-                      className="data-[state=checked]:bg-[#222222] data-[state=checked]:border-[#222222]"
+                      className="data-[state=checked]:bg-[#1F1F1F] data-[state=checked]:border-[#1F1F1F]"
                     />
                   </div>
 

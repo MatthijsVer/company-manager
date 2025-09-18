@@ -674,7 +674,7 @@ export default function CompaniesPage() {
                     />
                     <div
                       className="w-8 h-8 rounded-full flex items-center justify-center text-white font-medium text-xs shrink-0"
-                      style={{ backgroundColor: company.color || "#222222" }}
+                      style={{ backgroundColor: company.color || "#1F1F1F" }}
                     >
                       {company.name.substring(0, 2).toUpperCase()}
                     </div>

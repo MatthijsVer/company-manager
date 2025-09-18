@@ -254,7 +254,7 @@ export function BoardPermissionsPopover({
                           <div className="flex items-center gap-2 flex-1">
                             <Avatar className="size-6">
                               <AvatarImage src={member.user.image} />
-                              <AvatarFallback className="text-xs bg-[#222222] text-white">
+                              <AvatarFallback className="text-xs bg-[#1F1F1F] text-white">
                                 {getInitials(
                                   member.user.name,
                                   member.user.email

@@ -232,7 +232,7 @@ export function DraftTaskDialog({
                       <div className="flex items-center gap-2">
                         <Avatar className="h-5 w-5">
                           <AvatarImage src={u.image || undefined} />
-                          <AvatarFallback className="text-[10px] bg-[#222222] text-white">
+                          <AvatarFallback className="text-[10px] bg-[#1F1F1F] text-white">
                             {(
                               u.name?.charAt(0) || u.email.charAt(0)
                             ).toUpperCase()}

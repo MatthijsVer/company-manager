@@ -565,7 +565,7 @@ export function KanbanColumn({
                               (task.assignedTo ? (
                                 <Avatar className="h-6 w-6">
                                   <AvatarImage src={task.assignedTo.image} />
-                                  <AvatarFallback className="text-[10px] bg-[#222222] text-white">
+                                  <AvatarFallback className="text-[10px] bg-[#1F1F1F] text-white">
                                     {task.assignedTo.name?.charAt(0) ||
                                       task.assignedTo.email?.charAt(0)}
                                   </AvatarFallback>
@@ -606,7 +606,7 @@ export function KanbanColumn({
               {tasks.length > 0 && !isQuickAddActive && (
                 <Button
                   onClick={onAddTask}
-                  className="w-full mt-1 bg-[#222222] hover:bg-[#222222]/90 rounded-full"
+                  className="w-full mt-1 bg-[#1F1F1F] hover:bg-[#1F1F1F]/90 rounded-full"
                 >
                   <Plus className="h-3.5 w-3.5 mr-1" />
                   Add task

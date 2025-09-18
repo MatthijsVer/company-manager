@@ -63,7 +63,7 @@ export function DraftTaskCard({
       )}
 
       <div
-        className="flex items-start cursor-pointer p-4 justify-between gap-3"
+        className="flex items-start cursor-pointer p-4 justify-between gap-3 bg-white rounded-t-2xl"
         onClick={() => onToggle(!task._selected)}
       >
         <div className="flex-1">
@@ -122,7 +122,7 @@ export function DraftTaskCard({
         <div className="flex items-center mr-auto">
           <Avatar className="size-5.5">
             <AvatarImage />
-            <AvatarFallback className="bg-[#222222] text-white text-[9px] font-semibold">
+            <AvatarFallback className="bg-[#1F1F1F] text-white text-[9px] font-semibold">
               MA
             </AvatarFallback>
           </Avatar>

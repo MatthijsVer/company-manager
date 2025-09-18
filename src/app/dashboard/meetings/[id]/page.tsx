@@ -15,6 +15,7 @@ export default async function MeetingDetailPage({
     where: { id, organizationId },
     include: { company: { select: { id: true, name: true, slug: true } } },
   });
+
   if (!meeting) {
     return (
       <div className="p-6">
@@ -47,7 +48,7 @@ export default async function MeetingDetailPage({
     select: { id: true, name: true, slug: true },
   });
 
-  // ✅ MySQL JSON filtering uses JSONPath string for `path`
+  // Load the minutes document and extract the HTML
   const minutesDoc = await prisma.organizationDocument.findFirst({
     where: {
       organizationId,
@@ -57,8 +58,15 @@ export default async function MeetingDetailPage({
         equals: meeting.id,
       },
     },
-    select: { id: true, fileUrl: true },
+    select: { id: true, fileUrl: true, metadata: true }, // ← Include metadata
   });
+
+  // Extract the saved HTML from the document metadata
+  let initialMinutesHTML: string | undefined;
+  if (minutesDoc?.metadata && typeof minutesDoc.metadata === "object") {
+    const metadata = minutesDoc.metadata as any;
+    initialMinutesHTML = metadata.html;
+  }
 
   return (
     <div className="space-y-6">
@@ -95,6 +103,7 @@ export default async function MeetingDetailPage({
         organizationId={organizationId!}
         initialSummary={extraction?.summary ?? ""}
         initialDecisions={extraction?.decisions ?? ""}
+        initialMinutesHTML={initialMinutesHTML} // ← Pass the saved HTML
         companies={companies}
         createdTasks={createdTasks}
         minutesDocInitial={

@@ -108,8 +108,8 @@ const RecordWidget = () => {
             key={recording.id}
             className={`pt-5 pl-5 pb-1.5 relative rounded-xl cursor-pointer transition-colors ${
               selectedRecording?.id === recording.id
-                ? "bg-[#222222]"
-                : "bg-[#222222]"
+                ? "bg-[#1F1F1F]"
+                : "bg-[#1F1F1F]"
             }`}
             onClick={() => setSelectedRecording(recording)}
           >
@@ -143,7 +143,7 @@ const RecordWidget = () => {
               <div className="w-[1.5px] rounded-full h-4 bg-[#535353]" />
               <div className="w-[1.5px] rounded-full h-2 bg-[#535353]" />
             </div>
-            <div className="absolute h-full w-10 bg-[#222222] rounded-r-xl py-5 text-xs top-0 right-0 text-white flex flex-col items-center justify-between">
+            <div className="absolute h-full w-10 bg-[#1F1F1F] rounded-r-xl py-5 text-xs top-0 right-0 text-white flex flex-col items-center justify-between">
               <span>20</span>
               <span>10</span>
               <span>0</span>
@@ -160,7 +160,7 @@ const RecordWidget = () => {
           <SkipBack className="w-6 h-6 text-black" />
         </button>
         <button
-          className="bg-[#222222] rounded-full p-4"
+          className="bg-[#1F1F1F] rounded-full p-4"
           onClick={() => setIsPlaying(!isPlaying)}
         >
           {isPlaying ? (

@@ -252,7 +252,7 @@ export default function RecordUploadPanel({
         </div>
 
         <div className="bg-white rounded-3xl p-2">
-          <div className="relative overflow-hidden rounded-2xl border border-[#222222] bg-[#222222] text-white p-4 sm:p-5 sm:pb-8">
+          <div className="relative overflow-hidden rounded-2xl border border-[#1F1F1F] bg-[#1F1F1F] text-white p-4 sm:p-5 sm:pb-8">
             <div className="flex items-start justify-between gap-3">
               <div>
                 <div className="text-sm text-zinc-400">Recorder</div>
@@ -352,7 +352,7 @@ export default function RecordUploadPanel({
                 <button
                   aria-label={isPlaying ? "Pause" : "Play"}
                   onClick={togglePlay}
-                  className="grid h-12 w-12 place-items-center rounded-full bg-[#222222] text-white hover:opacity-90"
+                  className="grid h-12 w-12 place-items-center rounded-full bg-[#1F1F1F] text-white hover:opacity-90"
                 >
                   {isPlaying ? (
                     <Pause className="w-6 h-6" />

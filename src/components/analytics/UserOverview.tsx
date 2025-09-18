@@ -24,7 +24,7 @@ export default function UserOverview() {
               className="object-cover"
               src="https://interly.nl/wp-content/uploads/2024/07/IMG_6414-scaled.jpeg"
             />
-            <AvatarFallback className="bg-[#222222] text-white font-semibold">
+            <AvatarFallback className="bg-[#1F1F1F] text-white font-semibold">
               MA
             </AvatarFallback>
           </Avatar>

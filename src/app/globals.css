@@ -235,3 +235,20 @@
 button {
   cursor: pointer;
 }
+
+.bn-container {
+  height: 100%;
+}
+
+.bn-container>div {
+  border-radius: 15px 15px 0 0;
+}
+
+/* .bn-container[data-theming-css-demo] .bn-editor * {
+
+} */
+
+.bn-editor {
+  height: 100%;
+  padding-top: 40px;
+}

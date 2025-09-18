@@ -272,7 +272,7 @@ export default function UsersPage() {
                     <div className="relative">
                       <Avatar className="h-14 w-14 ring-2 ring-white">
                         <AvatarImage src={user.image || undefined} />
-                        <AvatarFallback className="bg-[#222222] text-white font-semibold">
+                        <AvatarFallback className="bg-[#1F1F1F] text-white font-semibold">
                           {user.name?.charAt(0) || user.email.charAt(0)}
                         </AvatarFallback>
                       </Avatar>

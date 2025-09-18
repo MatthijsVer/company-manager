@@ -467,7 +467,7 @@ export function TaskDetailSlide({
                   <div className="flex items-center gap-2">
                     <Avatar className="h-5 w-5">
                       <AvatarImage src={task.assignedTo.image} />
-                      <AvatarFallback className="text-[9px] bg-[#222222] text-white">
+                      <AvatarFallback className="text-[9px] bg-[#1F1F1F] text-white">
                         {task.assignedTo.name?.charAt(0)}
                       </AvatarFallback>
                     </Avatar>
@@ -629,7 +629,7 @@ export function TaskDetailSlide({
                                 )?.image
                               }
                             />
-                            <AvatarFallback className="text-[10px] bg-[#222222] text-white">
+                            <AvatarFallback className="text-[10px] bg-[#1F1F1F] text-white">
                               {users
                                 .find((u) => u.id === formData.assignedToId)
                                 ?.name?.charAt(0)}
@@ -821,7 +821,7 @@ export function TaskDetailSlide({
                         <div key={comment.id} className="flex gap-3">
                           <Avatar className="h-8 w-8">
                             <AvatarImage src={comment.user?.image} />
-                            <AvatarFallback className="text-xs bg-[#222222] text-white">
+                            <AvatarFallback className="text-xs bg-[#1F1F1F] text-white">
                               {comment.user?.name?.charAt(0) || "U"}
                             </AvatarFallback>
                           </Avatar>

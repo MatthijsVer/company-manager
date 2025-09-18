@@ -350,7 +350,7 @@ export function CompanyTasks({ companyId, session }: CompanyTasksProps) {
                       <div className="flex items-center gap-2">
                         <Avatar className="h-6 w-6">
                           <AvatarImage src={task.assignedTo.image} />
-                          <AvatarFallback className="bg-[#222222] text-white text-[10px]">
+                          <AvatarFallback className="bg-[#1F1F1F] text-white text-[10px]">
                             {task.assignedTo.name?.charAt(0)}
                           </AvatarFallback>
                         </Avatar>

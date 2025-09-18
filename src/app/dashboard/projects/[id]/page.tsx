@@ -203,7 +203,7 @@ export default function CompanyDetailPage() {
                 <Button
                   variant="outline"
                   size="icon"
-                  className="bg-[#222222] border-[#222222] text-white"
+                  className="bg-[#1F1F1F] border-[#1F1F1F] text-white"
                 >
                   <MoreHorizontal className="h-4 w-4" />
                 </Button>

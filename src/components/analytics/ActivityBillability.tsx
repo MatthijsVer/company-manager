@@ -120,7 +120,7 @@ export function ActivityBillability({
 
   if (loading) {
     return (
-      <Card className="h-full col-span-2">
+      <Card className="h-full col-span-2 border-0 rounded-3xl">
         <CardContent className="flex items-center justify-center h-96">
           <div className="animate-pulse text-gray-400">
             Loading activity data...
@@ -131,7 +131,7 @@ export function ActivityBillability({
   }
 
   return (
-    <Card className="h-fit rounded-3xl border-none bg-white">
+    <Card className="h-full rounded-3xl border-none bg-white">
       <CardHeader className="pb-0">
         <div className="flex justify-between items-center">
           <h3 className="uppercase font-semibold">Activity</h3>
@@ -243,7 +243,7 @@ export function ActivityBillability({
                   <div className="flex gap-3 w-full">
                     <Avatar className="size-10 min-w-10">
                       <AvatarImage className="object-cover" src="" />
-                      <AvatarFallback className="bg-[#222222] text-white text-sm">
+                      <AvatarFallback className="bg-[#1F1F1F] text-white text-sm">
                         {platform.name[0]}
                       </AvatarFallback>
                     </Avatar>

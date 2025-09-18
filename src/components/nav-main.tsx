@@ -393,7 +393,7 @@ export function NavMain({ items }: { items: NavItem[] }) {
                                               />
                                             ) : (
                                               <AvatarFallback
-                                                className="text-[9px] text-white bg-[#222222] font-semibold"
+                                                className="text-[9px] text-white bg-[#1F1F1F] font-semibold"
                                                 style={{
                                                   backgroundColor:
                                                     project.color || undefined,

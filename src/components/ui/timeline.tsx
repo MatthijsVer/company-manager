@@ -72,7 +72,7 @@ export function Timeline({ events }: TimelineProps) {
                         {event.icon}
                       </span>
                     ) : (
-                      <span className="relative block h-2.5 w-2.5 rounded-full ring-1 ring-[#222222]">
+                      <span className="relative block h-2.5 w-2.5 rounded-full ring-1 ring-[#1F1F1F]">
                         <span
                           className={cn(
                             "absolute inset-0.5 rounded-full",
@@ -87,7 +87,7 @@ export function Timeline({ events }: TimelineProps) {
                   <div className="flex items-center gap-2 min-w-0 pl-3">
                     <Avatar className="h-5 w-5 shrink-0">
                       <AvatarImage />
-                      <AvatarFallback className="text-[10px] bg-[#222222] text-white">
+                      <AvatarFallback className="text-[10px] bg-[#1F1F1F] text-white">
                         {event.user?.name?.[0] ?? "U"}
                       </AvatarFallback>
                     </Avatar>

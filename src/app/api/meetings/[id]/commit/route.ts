@@ -146,7 +146,16 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   if (!meeting) return NextResponse.json({ error: "Not found" }, { status: 404 });
   if (meeting.organizationId !== organizationId) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
+  // Parse body FIRST
   const body = await req.json();
+  
+  // THEN extract the minutesHTML after body is parsed
+  const minutesHTMLFromClient: string = typeof body.minutesHTML === "string" ? body.minutesHTML : "";
+  
+  // DEBUG: Log what we received
+  console.log("📥 API DEBUG - Received minutesHTML length:", minutesHTMLFromClient.length);
+  console.log("📥 API DEBUG - minutesHTML content:", minutesHTMLFromClient.slice(0, 200));
+
   const summary: string = String(body.summary ?? "");
   const decisionsText: string = String(body.decisions ?? "");
   const createMinutes: boolean = body.createMinutes !== false; // default true
@@ -163,7 +172,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     labels?: (string | { name: string })[];
   }> = Array.isArray(body.tasks) ? body.tasks : [];
 
-  // Lookups (companies / users)… (unchanged from previous version)
+  // Lookups (companies / users)
   const names = Array.from(new Set(tasks.map(t => (t.companyName || "").trim()).filter(Boolean)));
   const slugs  = Array.from(new Set(tasks.map(t => (t.companySlug || "").trim()).filter(Boolean)));
   const emails = Array.from(new Set(tasks.map(t => (t.assigneeEmail || "").trim().toLowerCase()).filter(Boolean)));
@@ -184,7 +193,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       .forEach(u => usersByEmail.set(u.email.toLowerCase(), u));
   }
 
-  // Auto-create missing companies by name (unchanged)
+  // Auto-create missing companies by name
   const toCreateCompanies: { name: string; slug: string }[] = [];
   if (autoCompanies) {
     for (const nm of names) {
@@ -212,7 +221,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     }
   }
 
-  // Build tasks (unchanged except company/assignee preference)
+  // Build tasks
   const toCreateTasks = tasks.map(t => {
     const coId =
       (t.companyId || null) ||
@@ -311,55 +320,97 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     // Mark processed
     await tx.meeting.update({ where: { id: meeting.id }, data: { status: "PROCESSED" } });
 
-    // ⏱️ TimeEntry automation
+    // TimeEntry automation
     const te = await maybeCreateTimeEntry(tx, meeting, null);
     timeEntryId = te.id;
     timeEntryCreated = te.created;
 
-    // 📝 Minutes Document
     if (createMinutes) {
-      // Render HTML using the *committed* tasks (string labels already normalized)
-      const html = renderMinutesHTML({
-        meeting,
-        summary,
-        decisionsText,
-        tasks: tasks.map(t => ({
-          name: t.name,
-          description: t.description,
-          dueDate: t.dueDate,
-          priority: t.priority,
-          assigneeEmail: t.assigneeEmail,
-          companyName: t.companyName,
-        })),
-      });
+      // Use the client's BlockNote HTML if provided, otherwise fall back to template
+      const html =
+        minutesHTMLFromClient && minutesHTMLFromClient.trim().length > 0
+          ? minutesHTMLFromClient
+          : renderMinutesHTML({
+              meeting,
+              summary,
+              decisionsText,
+              tasks: tasks.map(t => ({
+                name: t.name,
+                description: t.description,
+                dueDate: t.dueDate,
+                priority: t.priority,
+                assigneeEmail: t.assigneeEmail,
+                companyName: t.companyName,
+              })),
+            });
+
+      console.log("💾 API DEBUG - Final HTML to save length:", html.length);
+      console.log("💾 API DEBUG - Using client HTML:", minutesHTMLFromClient.length > 0);
+      console.log("💾 API DEBUG - Final HTML preview:", html.slice(0, 300));
 
       const fileName = `Meeting Minutes - ${meeting.title || format(new Date(meeting.createdAt), "yyyy-MM-dd_HH-mm")}.html`;
       const fileSize = Buffer.byteLength(html, "utf8");
 
-      // Create the doc first to get ID, then update fileUrl to app route
-      const doc = await tx.organizationDocument.create({
-        data: {
+      // Check if document already exists and update it, or create new one
+      const existingDoc = await tx.organizationDocument.findFirst({
+        where: {
           organizationId,
-          uploadedBy: userId,
           category: "meeting_minutes",
-          fileName,
-          fileSize,
-          fileUrl: "", // update just below
-          mimeType: "text/html",
-          description: summary?.slice(0, 500) || null,
-          tags: JSON.stringify(["meeting_minutes"]),
           metadata: {
-            kind: "meeting_minutes",
-            meetingId: meeting.id,
-            companyId: meeting.companyId ?? null,
-            html,
-            tasksCount: tasks.length,
+            path: "$.meetingId",
+            equals: meeting.id,
           },
-          isTemplate: false,
-          isStarred: false,
         },
         select: { id: true },
       });
+
+      let doc;
+      if (existingDoc) {
+        // Update existing document
+        doc = await tx.organizationDocument.update({
+          where: { id: existingDoc.id },
+          data: {
+            fileSize,
+            description: summary?.slice(0, 500) || null,
+            metadata: {
+              kind: "meeting_minutes",
+              meetingId: meeting.id,
+              companyId: meeting.companyId ?? null,
+              html, // This should now be the BlockNote HTML
+              tasksCount: tasks.length,
+            },
+            updatedAt: new Date(),
+          },
+          select: { id: true },
+        });
+        console.log("💾 API DEBUG - Updated existing document:", doc.id);
+      } else {
+        // Create new document
+        doc = await tx.organizationDocument.create({
+          data: {
+            organizationId,
+            uploadedBy: userId,
+            category: "meeting_minutes",
+            fileName,
+            fileSize,
+            fileUrl: "",
+            mimeType: "text/html",
+            description: summary?.slice(0, 500) || null,
+            tags: JSON.stringify(["meeting_minutes"]),
+            metadata: {
+              kind: "meeting_minutes",
+              meetingId: meeting.id,
+              companyId: meeting.companyId ?? null,
+              html, // This should now be the BlockNote HTML
+              tasksCount: tasks.length,
+            },
+            isTemplate: false,
+            isStarred: false,
+          },
+          select: { id: true },
+        });
+        console.log("💾 API DEBUG - Created new document:", doc.id);
+      }
 
       const url = `/dashboard/documents/${doc.id}`;
       await tx.organizationDocument.update({
@@ -367,7 +418,6 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
         data: { fileUrl: url },
       });
 
-      // Link to company if present
       if (meeting.companyId) {
         await tx.documentCompanyLink.upsert({
           where: { documentId_companyId: { documentId: doc.id, companyId: meeting.companyId } },

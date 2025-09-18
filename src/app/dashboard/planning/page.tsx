@@ -575,7 +575,7 @@ export default function PlanningPage() {
                   <div
                     className={cn(
                       "text-sm font-semibold text-[#636363]",
-                      isToday(day) && "text-[#222222] font-semibold"
+                      isToday(day) && "text-[#1F1F1F] font-semibold"
                     )}
                   >
                     {format(day, "EEEE")}

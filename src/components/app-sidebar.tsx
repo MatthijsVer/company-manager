@@ -122,7 +122,7 @@ const data = {
       icon: Braces,
     },
     {
-      name: "Transciptie",
+      name: "Meetings",
       url: "/dashboard/meetings",
       icon: Mic,
     },

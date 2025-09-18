@@ -428,7 +428,7 @@ export function CompanyAttachments({
                                     </td>
                                     <td className="py-2">
                                       <div className="flex items-center gap-2">
-                                        <div className="h-6 w-6 rounded-full bg-[#222222] text-white text-xs font-medium flex items-center justify-center">
+                                        <div className="h-6 w-6 rounded-full bg-[#1F1F1F] text-white text-xs font-medium flex items-center justify-center">
                                           {attachment.user.name[0]}
                                         </div>
                                         <span className="text-sm text-muted-foreground">
