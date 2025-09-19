@@ -8,7 +8,7 @@ export async function POST(
   ) {
     try {
       const session = await requireAuth();
-      const { id } = params;
+      const { id } = await params;
       const { targetFolderId } = await req.json();
   
       if (!targetFolderId) {
@@ -33,29 +33,34 @@ export async function POST(
         );
       }
   
-      // Check permissions on both source and target folders
-      const [sourcePermission, targetPermission] = await Promise.all([
-        prisma.folderPermission.findFirst({
-          where: {
-            folderId: document.folderId,
-            userId: session.userId,
-            canEdit: true,
-          },
-        }),
-        prisma.folderPermission.findFirst({
-          where: {
-            folderId: targetFolderId,
-            userId: session.userId,
-            canEdit: true,
-          },
-        }),
-      ]);
-  
-      if (!sourcePermission || !targetPermission) {
-        return NextResponse.json(
-          { error: "You don't have permission to move this document" },
-          { status: 403 }
-        );
+      // Check permissions: Admins/Owners can move any document, others need specific permissions
+      const isAdminOrOwner = session.role === 'OWNER' || session.role === 'ADMIN';
+      
+      if (!isAdminOrOwner) {
+        // Check permissions on both source and target folders
+        const [sourcePermission, targetPermission] = await Promise.all([
+          prisma.folderPermission.findFirst({
+            where: {
+              folderId: document.folderId,
+              userId: session.userId,
+              canEdit: true,
+            },
+          }),
+          prisma.folderPermission.findFirst({
+            where: {
+              folderId: targetFolderId,
+              userId: session.userId,
+              canEdit: true,
+            },
+          }),
+        ]);
+    
+        if (!sourcePermission || !targetPermission) {
+          return NextResponse.json(
+            { error: "You don't have permission to move this document" },
+            { status: 403 }
+          );
+        }
       }
   
       // Move document

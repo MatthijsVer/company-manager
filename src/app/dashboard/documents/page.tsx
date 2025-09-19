@@ -46,10 +46,31 @@ export default function DocumentsPage() {
   }, []);
 
   useEffect(() => {
-    if (selectedFolderId) {
-      fetchDocuments(selectedFolderId);
+    // Fetch documents for all expanded folders
+    const fetchAllDocuments = async () => {
+      const allDocuments: Document[] = [];
+      
+      for (const folderId of expandedFolders) {
+        try {
+          const res = await fetch(`/api/documents?folderId=${folderId}`);
+          if (res.ok) {
+            const data = await res.json();
+            allDocuments.push(...(data.documents || []));
+          }
+        } catch (error) {
+          console.error(`Failed to fetch documents for folder ${folderId}:`, error);
+        }
+      }
+      
+      setDocuments(allDocuments);
+    };
+
+    if (expandedFolders.size > 0) {
+      fetchAllDocuments();
+    } else {
+      setDocuments([]);
     }
-  }, [selectedFolderId]);
+  }, [expandedFolders]);
 
   const fetchFolders = async () => {
     try {
@@ -59,11 +80,8 @@ export default function DocumentsPage() {
         const data = await res.json();
         setFolders(data.folders || []);
 
-        // Auto-expand root folders
-        const rootFolderIds = data.folders
-          .filter((f: Folder) => !f.parentId)
-          .map((f: Folder) => f.id);
-        setExpandedFolders(new Set(rootFolderIds));
+        // Don't auto-expand folders by default
+        setExpandedFolders(new Set());
 
         // Select first folder if none selected
         if (data.folders.length > 0 && !selectedFolderId) {
@@ -78,18 +96,6 @@ export default function DocumentsPage() {
     }
   };
 
-  const fetchDocuments = async (folderId: string) => {
-    try {
-      const res = await fetch(`/api/documents?folderId=${folderId}`);
-      if (res.ok) {
-        const data = await res.json();
-        setDocuments(data.documents || []);
-      }
-    } catch (error) {
-      console.error("Failed to fetch documents:", error);
-      toast.error("Failed to load documents");
-    }
-  };
 
   const fetchCompanies = async () => {
     try {
@@ -211,9 +217,10 @@ export default function DocumentsPage() {
         const newDoc = await res.json();
         toast.success("Document uploaded successfully");
 
-        // Refresh documents if in same folder
-        if (data.folderId === selectedFolderId) {
-          await fetchDocuments(data.folderId);
+        // Refresh documents if folder is expanded
+        if (expandedFolders.has(data.folderId)) {
+          // Trigger a re-fetch by updating expandedFolders
+          setExpandedFolders(new Set(expandedFolders));
         }
 
         // Refresh folder counts
@@ -241,6 +248,8 @@ export default function DocumentsPage() {
         toast.success("Document deleted");
         setDocuments((prev) => prev.filter((d) => d.id !== documentId));
         await fetchFolders(); // Refresh folder counts
+        // Re-trigger document fetch for expanded folders
+        setExpandedFolders(new Set(expandedFolders));
       } else {
         const error = await res.json();
         toast.error(error.error || "Failed to delete document");
@@ -265,11 +274,12 @@ export default function DocumentsPage() {
       if (res.ok) {
         toast.success("Document moved");
 
-        // Remove from current view
-        setDocuments((prev) => prev.filter((d) => d.id !== documentId));
-
         // Refresh folders for counts
         await fetchFolders();
+        
+        // Re-trigger document fetch for expanded folders
+        setExpandedFolders(new Set(expandedFolders));
+        
         setMoveDocumentDialogOpen(false);
       } else {
         const error = await res.json();
@@ -279,6 +289,60 @@ export default function DocumentsPage() {
       console.error("Failed to move document:", error);
       toast.error("Failed to move document");
     }
+  };
+
+  const handleMoveFolder = async (
+    folderId: string,
+    targetParentId: string | null
+  ) => {
+    try {
+      const res = await fetch(`/api/folders/${folderId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ parentId: targetParentId }),
+      });
+
+      if (res.ok) {
+        toast.success("Folder moved");
+        await fetchFolders();
+      } else {
+        const error = await res.json();
+        toast.error(error.error || "Failed to move folder");
+      }
+    } catch (error) {
+      console.error("Failed to move folder:", error);
+      toast.error("Failed to move folder");
+    }
+  };
+
+  const handleDocumentDrop = async (
+    documentId: string,
+    targetFolderId: string
+  ) => {
+    await handleMoveDocument(documentId, targetFolderId);
+  };
+
+  const handleFilesDrop = async (files: FileList, targetFolderId: string) => {
+    // Process each file
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i];
+      await handleUploadDocument({
+        file,
+        folderId: targetFolderId,
+        description: undefined,
+        tags: [],
+        isTemplate: false,
+        linkedCompanies: [],
+      });
+    }
+    
+    // Refresh folders and documents
+    await fetchFolders();
+    if (expandedFolders.has(targetFolderId)) {
+      setExpandedFolders(new Set(expandedFolders));
+    }
+    
+    toast.success(`${files.length} file(s) uploaded`);
   };
 
   const handleLinkCompanies = async (
@@ -376,7 +440,9 @@ export default function DocumentsPage() {
             documents={filteredDocuments}
             selectedFolderId={selectedFolderId}
             expandedFolders={expandedFolders}
-            onFolderSelect={setSelectedFolderId}
+            onFolderSelect={(folderId) => {
+              setSelectedFolderId(folderId);
+            }}
             onFolderToggle={(folderId) => {
               setExpandedFolders((prev) => {
                 const next = new Set(prev);
@@ -394,6 +460,7 @@ export default function DocumentsPage() {
               setFolderDialogOpen(true);
             }}
             onFolderDelete={handleDeleteFolder}
+            onFolderMove={handleMoveFolder}
             onDocumentDownload={handleDownload}
             onDocumentMove={(doc) => {
               setSelectedDocument(doc);
@@ -404,6 +471,8 @@ export default function DocumentsPage() {
               setLinkCompanyDialogOpen(true);
             }}
             onDocumentDelete={handleDeleteDocument}
+            onDocumentDrop={handleDocumentDrop}
+            onFilesDrop={handleFilesDrop}
           />
         )}
       </div>
