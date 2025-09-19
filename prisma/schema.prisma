@@ -108,8 +108,15 @@ model User {
   companyAssignments     CompanyAssignment[]
   timeEntries            TimeEntry[]
   organizationDocuments  OrganizationDocument[]
-  documentLinks          DocumentCompanyLink[]
   organizationCategories OrganizationCategory[]
+
+  createdFolders       Folder[]              @relation("FolderCreator")
+  uploadedDocuments    Document[]            @relation("DocumentUploader")
+  folderPermissions    FolderPermission[]
+  documentPermissions  DocumentPermission[]
+  folderCompanyLinks   FolderCompanyLink[]
+  documentCompanyLinks DocumentCompanyLink[]
+  documentActivities   DocumentActivity[]
 
   KanbanBoardConfig KanbanBoardConfig[]
 
@@ -156,6 +163,9 @@ model Organization {
   roleColorSettings RoleColorSettings?
 
   Task Task[]
+
+  folders   Folder[]
+  documents Document[]
 
   OrganizationDocument OrganizationDocument[]
 
@@ -306,6 +316,7 @@ model Company {
 
   timeEntries       TimeEntry[]
   tasks             Task[]
+  linkedFolders     FolderCompanyLink[]
   linkedDocuments   DocumentCompanyLink[]
   KanbanBoardConfig KanbanBoardConfig[]
   Meeting           Meeting[]
@@ -637,7 +648,6 @@ model OrganizationDocument {
   user         User         @relation(fields: [uploadedBy], references: [id])
 
   // Many-to-many relation with companies
-  companies DocumentCompanyLink[]
 
   createdAt  DateTime     @default(now())
   updatedAt  DateTime     @updatedAt
@@ -647,25 +657,6 @@ model OrganizationDocument {
   @@index([organizationId, isTemplate])
   @@index([organizationId, isStarred])
   @@index([organizationId, createdAt])
-}
-
-// Junction table for document-company relationships
-model DocumentCompanyLink {
-  id         String @id @default(cuid())
-  documentId String
-  companyId  String
-
-  // Additional metadata for the link
-  linkedBy String
-  linkedAt DateTime @default(now())
-
-  document OrganizationDocument @relation(fields: [documentId], references: [id], onDelete: Cascade)
-  company  Company              @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  user     User                 @relation(fields: [linkedBy], references: [id])
-
-  @@unique([documentId, companyId])
-  @@index([documentId])
-  @@index([companyId])
 }
 
 model OrganizationCategory {
@@ -835,4 +826,173 @@ model AiJob {
   meeting Meeting? @relation(fields: [meetingId], references: [id], onDelete: SetNull)
 
   @@index([meetingId])
+}
+
+model Folder {
+  id             String  @id @default(cuid())
+  organizationId String
+  name           String
+  description    String?
+
+  parentId String?
+  parent   Folder?  @relation("FolderHierarchy", fields: [parentId], references: [id], onDelete: Cascade)
+  children Folder[] @relation("FolderHierarchy")
+
+  color          String?
+  icon           String?
+  isSystemFolder Boolean @default(false)
+
+  createdBy      String
+  createdByUser  User     @relation("FolderCreator", fields: [createdBy], references: [id])
+  lastModifiedBy String?
+  lastModifiedAt DateTime @updatedAt
+
+  organization Organization        @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  documents    Document[]
+  permissions  FolderPermission[]
+  companyLinks FolderCompanyLink[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([organizationId, parentId, name])
+  @@index([organizationId])
+  @@index([parentId])
+}
+
+model Document {
+  id             String @id @default(cuid())
+  organizationId String
+  folderId       String
+
+  fileName String
+  fileUrl  String
+  fileSize Int
+  mimeType String
+
+  description String? @db.Text
+  tags        String?
+  version     Int     @default(1)
+  isTemplate  Boolean @default(false)
+
+  fileHash   String?
+  scanStatus String  @default("pending")
+  scanResult Json?
+
+  uploadedBy     String
+  uploadedByUser User     @relation("DocumentUploader", fields: [uploadedBy], references: [id])
+  lastModifiedBy String?
+  lastModifiedAt DateTime @updatedAt
+
+  organization Organization          @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  folder       Folder                @relation(fields: [folderId], references: [id], onDelete: Cascade)
+  permissions  DocumentPermission[]
+  companyLinks DocumentCompanyLink[]
+  activities   DocumentActivity[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([organizationId])
+  @@index([folderId])
+  @@index([uploadedBy])
+}
+
+model FolderPermission {
+  id       String   @id @default(cuid())
+  folderId String
+  userId   String?
+  role     OrgRole?
+
+  canView        Boolean @default(true)
+  canEdit        Boolean @default(false)
+  canDelete      Boolean @default(false)
+  canShare       Boolean @default(false)
+  canManagePerms Boolean @default(false)
+
+  folder Folder @relation(fields: [folderId], references: [id], onDelete: Cascade)
+  user   User?  @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([folderId, userId])
+  @@unique([folderId, role])
+  @@index([folderId])
+  @@index([userId])
+}
+
+model DocumentPermission {
+  id         String   @id @default(cuid())
+  documentId String
+  userId     String?
+  role       OrgRole?
+
+  canView   Boolean @default(true)
+  canEdit   Boolean @default(false)
+  canDelete Boolean @default(false)
+  canShare  Boolean @default(false)
+
+  document Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  user     User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([documentId, userId])
+  @@unique([documentId, role])
+  @@index([documentId])
+  @@index([userId])
+}
+
+model FolderCompanyLink {
+  id        String @id @default(cuid())
+  folderId  String
+  companyId String
+
+  linkedBy String
+  linkedAt DateTime @default(now())
+
+  folder  Folder  @relation(fields: [folderId], references: [id], onDelete: Cascade)
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [linkedBy], references: [id])
+
+  @@unique([folderId, companyId])
+  @@index([folderId])
+  @@index([companyId])
+}
+
+model DocumentCompanyLink {
+  id         String @id @default(cuid())
+  documentId String
+  companyId  String
+
+  linkedBy String
+  linkedAt DateTime @default(now())
+
+  document Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  company  Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  user     User     @relation(fields: [linkedBy], references: [id])
+
+  @@unique([documentId, companyId])
+  @@index([documentId])
+  @@index([companyId])
+}
+
+model DocumentActivity {
+  id         String  @id @default(cuid())
+  documentId String
+  userId     String
+  action     String
+  metadata   Json?
+  ipAddress  String?
+  userAgent  String?
+
+  document Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  user     User     @relation(fields: [userId], references: [id])
+
+  createdAt DateTime @default(now())
+
+  @@index([documentId, createdAt])
+  @@index([userId])
 }
