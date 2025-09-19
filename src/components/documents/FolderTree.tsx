@@ -103,12 +103,24 @@ export function FolderTree({
     return ext || "FILE";
   };
 
+  // Helper function to find a folder in the nested structure
+  const findFolderById = (folderId: string, folderList: Folder[] = folders): Folder | undefined => {
+    for (const folder of folderList) {
+      if (folder.id === folderId) return folder;
+      if (folder.children.length > 0) {
+        const found = findFolderById(folderId, folder.children);
+        if (found) return found;
+      }
+    }
+    return undefined;
+  };
+
   // Check if a folder is a descendant of another
   const isDescendant = (
     folderId: string,
     potentialAncestorId: string
   ): boolean => {
-    const folder = folders.find((f) => f.id === folderId);
+    const folder = findFolderById(folderId);
     if (!folder) return false;
     if (folder.parentId === potentialAncestorId) return true;
     if (folder.parentId)
@@ -118,7 +130,12 @@ export function FolderTree({
 
   // Handle folder drag start
   const handleFolderDragStart = (e: DragEvent, folder: Folder) => {
-    if (folder.isSystemFolder) return; // Don't allow dragging system folders
+    console.log("Folder drag start:", folder.name, folder.isSystemFolder);
+    
+    if (folder.isSystemFolder) {
+      e.preventDefault();
+      return; // Don't allow dragging system folders
+    }
 
     setDraggedItem({ type: "folder", id: folder.id });
     e.dataTransfer.effectAllowed = "move";
@@ -183,6 +200,7 @@ export function FolderTree({
 
   // Handle drop on folder
   const handleFolderDrop = (e: DragEvent, targetFolderId: string) => {
+    console.log("Folder drop:", targetFolderId, "draggedItem:", draggedItem);
     e.preventDefault();
     e.stopPropagation();
 
@@ -197,15 +215,30 @@ export function FolderTree({
     }
 
     // Handle internal drag and drop
-    if (!draggedItem) return;
+    if (!draggedItem) {
+      console.log("No dragged item");
+      return;
+    }
 
     if (draggedItem.type === "folder") {
+      console.log("Moving folder:", draggedItem.id, "to parent:", targetFolderId);
       // Move folder
       if (onFolderMove && draggedItem.id !== targetFolderId) {
-        const draggedFolder = folders.find((f) => f.id === draggedItem.id);
-        if (draggedFolder && !isDescendant(targetFolderId, draggedItem.id)) {
+        const draggedFolder = findFolderById(draggedItem.id);
+        const targetFolder = findFolderById(targetFolderId);
+        const wouldCreateCircularRef = isDescendant(targetFolderId, draggedItem.id);
+        
+        console.log("Dragged folder:", draggedFolder?.name, "Target folder:", targetFolder?.name);
+        console.log("Would create circular ref:", wouldCreateCircularRef);
+        
+        if (draggedFolder && !wouldCreateCircularRef) {
+          console.log("Calling onFolderMove");
           onFolderMove(draggedItem.id, targetFolderId);
+        } else {
+          console.log("Cannot move - dragged folder not found or circular reference");
         }
+      } else {
+        console.log("Cannot move - same folder or no handler");
       }
     } else if (draggedItem.type === "document") {
       // Move document
