@@ -11,8 +11,11 @@ import { FolderDialog } from "@/components/documents/FolderDialog";
 import { LinkCompanyDialog } from "@/components/documents/LinkCompanyDialog";
 import { MoveDocumentDialog } from "@/components/documents/MoveDocumentDialog";
 import type { Folder, Document, Company } from "@/types/documents";
+import { useRouter } from "next/navigation";
 
 export default function DocumentsPage() {
+  const router = useRouter();
+
   // Data states
   const [folders, setFolders] = useState<Folder[]>([]);
   const [documents, setDocuments] = useState<Document[]>([]);
@@ -39,6 +42,7 @@ export default function DocumentsPage() {
   );
   const [linkCompanyDialogOpen, setLinkCompanyDialogOpen] = useState(false);
   const [moveDocumentDialogOpen, setMoveDocumentDialogOpen] = useState(false);
+  const [hasLoadedOnce, setHasLoadedOnce] = useState(false);
 
   useEffect(() => {
     fetchFolders();
@@ -49,7 +53,7 @@ export default function DocumentsPage() {
     // Fetch documents for all expanded folders
     const fetchAllDocuments = async () => {
       const allDocuments: Document[] = [];
-      
+
       for (const folderId of expandedFolders) {
         try {
           const res = await fetch(`/api/documents?folderId=${folderId}`);
@@ -58,10 +62,13 @@ export default function DocumentsPage() {
             allDocuments.push(...(data.documents || []));
           }
         } catch (error) {
-          console.error(`Failed to fetch documents for folder ${folderId}:`, error);
+          console.error(
+            `Failed to fetch documents for folder ${folderId}:`,
+            error
+          );
         }
       }
-      
+
       setDocuments(allDocuments);
     };
 
@@ -72,7 +79,9 @@ export default function DocumentsPage() {
     }
   }, [expandedFolders]);
 
-  const fetchFolders = async () => {
+  const fetchFolders = async (opts?: { preserveExpansion?: boolean }) => {
+    const preserveExpansion = opts?.preserveExpansion ?? true;
+
     try {
       setLoading(true);
       const res = await fetch("/api/folders");
@@ -80,13 +89,24 @@ export default function DocumentsPage() {
         const data = await res.json();
         setFolders(data.folders || []);
 
-        // Don't auto-expand folders by default
-        setExpandedFolders(new Set());
+        // 🔑 Keep previously expanded folders (only collapse on first-ever load if you want)
+        setExpandedFolders((prev) => {
+          if (!preserveExpansion) return new Set<string>(); // explicit collapse
+          // keep only IDs that still exist in the new tree
+          const next = new Set<string>();
+          for (const id of prev) {
+            if (folderExists(data.folders || [], id)) next.add(id);
+          }
+          return next;
+        });
 
-        // Select first folder if none selected
-        if (data.folders.length > 0 && !selectedFolderId) {
-          setSelectedFolderId(data.folders[0].id);
-        }
+        // Keep selection if it still exists, otherwise fall back (optional)
+        setSelectedFolderId((sel) => {
+          if (sel && folderExists(data.folders || [], sel)) return sel;
+          return data.folders?.[0]?.id ?? null;
+        });
+
+        if (!hasLoadedOnce) setHasLoadedOnce(true);
       }
     } catch (error) {
       console.error("Failed to fetch folders:", error);
@@ -95,7 +115,6 @@ export default function DocumentsPage() {
       setLoading(false);
     }
   };
-
 
   const fetchCompanies = async () => {
     try {
@@ -106,6 +125,159 @@ export default function DocumentsPage() {
       }
     } catch (error) {
       console.error("Failed to fetch companies:", error);
+    }
+  };
+
+  const folderExists = (list: Folder[], id: string): boolean => {
+    for (const f of list) {
+      if (f.id === id) return true;
+      if (f.children?.length && folderExists(f.children, id)) return true;
+    }
+    return false;
+  };
+
+  const removeFolderById = (list: Folder[], id: string): Folder[] =>
+    list
+      .map((f) =>
+        f.id === id
+          ? null
+          : {
+              ...f,
+              children: f.children ? removeFolderById(f.children, id) : [],
+            }
+      )
+      .filter(Boolean) as Folder[];
+
+  const addChildToFolder = (
+    list: Folder[],
+    parentId: string,
+    child: Folder
+  ): Folder[] =>
+    list.map((f) => {
+      if (f.id === parentId) {
+        return {
+          ...f,
+          // ensure children array exists
+          children: [...(f.children || []), child],
+          // bump last modified to reflect change
+          lastModifiedAt: new Date().toISOString() as any,
+        };
+      }
+      return {
+        ...f,
+        children: f.children
+          ? addChildToFolder(f.children, parentId, child)
+          : [],
+      };
+    });
+
+  const replaceFolderById = (
+    list: Folder[],
+    tempId: string,
+    real: Folder
+  ): Folder[] =>
+    list.map((f) => {
+      if (f.id === tempId) return real;
+      return {
+        ...f,
+        children: f.children ? replaceFolderById(f.children, tempId, real) : [],
+      };
+    });
+
+  const collectDescendantIds = (list: Folder[], rootId: string): string[] => {
+    const found = (function find(list2: Folder[]): Folder | null {
+      for (const f of list2) {
+        if (f.id === rootId) return f;
+        const inChild = find(f.children || []);
+        if (inChild) return inChild;
+      }
+      return null;
+    })(list);
+
+    const ids: string[] = [];
+    (function walk(f?: Folder) {
+      if (!f) return;
+      for (const c of f.children || []) {
+        ids.push(c.id);
+        walk(c);
+      }
+    })(found || undefined);
+    return ids;
+  };
+
+  const handleCreateBlankFileInFolder = (folderId: string) => {
+    const q = new URLSearchParams({ folderId });
+    router.push(`/dashboard/documents/new?${q.toString()}`);
+  };
+
+  const handleUploadInFolder = (folderId: string) => {
+    setSelectedFolderId(folderId);
+    setUploadDialogOpen(true);
+  };
+
+  const onCreateSubfolder = async (parentFolderId: string, name: string) => {
+    // optimistic temp folder
+    const tempId = `temp-${Math.random().toString(36).slice(2)}`;
+    const tempFolder: Folder = {
+      id: tempId,
+      organizationId: "optimistic",
+      name,
+      description: "",
+      parentId: parentFolderId,
+      parent: null as any,
+      children: [],
+      color: undefined,
+      icon: undefined,
+      isSystemFolder: false,
+      createdBy: "optimistic",
+      createdByUser: {} as any,
+      lastModifiedBy: undefined,
+      lastModifiedAt: new Date() as any,
+      organization: {} as any,
+      documents: [],
+      permissions: [],
+      companyLinks: [],
+      createdAt: new Date() as any,
+      updatedAt: new Date() as any,
+      // counters you use in UI:
+      documentCount: 0 as any,
+      totalSize: 0 as any,
+    };
+
+    // apply optimistic update + keep parent expanded
+    setFolders((prev) => addChildToFolder(prev, parentFolderId, tempFolder));
+    setExpandedFolders((prev) => {
+      const next = new Set(prev);
+      next.add(parentFolderId);
+      return next;
+    });
+
+    try {
+      // call your existing API
+      const res = await fetch("/api/folders", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name, parentId: parentFolderId }),
+      });
+
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || "Failed to create folder");
+      }
+
+      const serverFolder: Folder = await res.json();
+
+      // swap temp with real
+      setFolders((prev) => replaceFolderById(prev, tempId, serverFolder));
+
+      // reconcile from server, but keep expanded
+      await fetchFolders({ preserveExpansion: true });
+      toast.success(`Folder "${serverFolder.name}" created`);
+    } catch (e) {
+      console.error(e);
+      // rollback temp
+      setFolders((prev) => removeFolderById(prev, tempId));
+      toast.error(e instanceof Error ? e.message : "Failed to create folder");
     }
   };
 
@@ -170,24 +342,47 @@ export default function DocumentsPage() {
   const handleDeleteFolder = async (folderId: string) => {
     if (!confirm("Are you sure you want to delete this folder?")) return;
 
-    try {
-      const res = await fetch(`/api/folders/${folderId}`, {
-        method: "DELETE",
-      });
+    // snapshot for rollback
+    const prevFolders = folders;
+    const prevExpanded = new Set(expandedFolders);
+    const prevSelected = selectedFolderId;
 
-      if (res.ok) {
-        toast.success("Folder deleted");
-        await fetchFolders();
-        if (selectedFolderId === folderId) {
-          setSelectedFolderId(null);
-        }
-      } else {
-        const error = await res.json();
-        toast.error(error.error || "Failed to delete folder");
+    // collect descendants to clean expanded state
+    const descendantIds = collectDescendantIds(folders, folderId);
+
+    // optimistic remove
+    setFolders((prev) => removeFolderById(prev, folderId));
+    setExpandedFolders((prev) => {
+      const next = new Set(prev);
+      next.delete(folderId);
+      for (const id of descendantIds) next.delete(id);
+      return next;
+    });
+    if (
+      selectedFolderId &&
+      (selectedFolderId === folderId ||
+        descendantIds.includes(selectedFolderId))
+    ) {
+      setSelectedFolderId(null);
+    }
+
+    try {
+      const res = await fetch(`/api/folders/${folderId}`, { method: "DELETE" });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || "Failed to delete folder");
       }
-    } catch (error) {
-      console.error("Failed to delete folder:", error);
-      toast.error("Failed to delete folder");
+
+      // refresh counts/metadata, preserving expansion
+      await fetchFolders({ preserveExpansion: true });
+      toast.success("Folder deleted");
+    } catch (e) {
+      console.error(e);
+      // rollback
+      setFolders(prevFolders);
+      setExpandedFolders(prevExpanded);
+      setSelectedFolderId(prevSelected);
+      toast.error(e instanceof Error ? e.message : "Failed to delete folder");
     }
   };
 
@@ -276,10 +471,10 @@ export default function DocumentsPage() {
 
         // Refresh folders for counts
         await fetchFolders();
-        
+
         // Re-trigger document fetch for expanded folders
         setExpandedFolders(new Set(expandedFolders));
-        
+
         setMoveDocumentDialogOpen(false);
       } else {
         const error = await res.json();
@@ -335,13 +530,13 @@ export default function DocumentsPage() {
         linkedCompanies: [],
       });
     }
-    
+
     // Refresh folders and documents
     await fetchFolders();
     if (expandedFolders.has(targetFolderId)) {
       setExpandedFolders(new Set(expandedFolders));
     }
-    
+
     toast.success(`${files.length} file(s) uploaded`);
   };
 
@@ -440,17 +635,11 @@ export default function DocumentsPage() {
             documents={filteredDocuments}
             selectedFolderId={selectedFolderId}
             expandedFolders={expandedFolders}
-            onFolderSelect={(folderId) => {
-              setSelectedFolderId(folderId);
-            }}
+            onFolderSelect={setSelectedFolderId}
             onFolderToggle={(folderId) => {
               setExpandedFolders((prev) => {
                 const next = new Set(prev);
-                if (next.has(folderId)) {
-                  next.delete(folderId);
-                } else {
-                  next.add(folderId);
-                }
+                next.has(folderId) ? next.delete(folderId) : next.add(folderId);
                 return next;
               });
             }}
@@ -473,6 +662,9 @@ export default function DocumentsPage() {
             onDocumentDelete={handleDeleteDocument}
             onDocumentDrop={handleDocumentDrop}
             onFilesDrop={handleFilesDrop}
+            onCreateFileInFolder={handleCreateBlankFileInFolder}
+            onUploadInFolder={handleUploadInFolder}
+            onCreateSubfolder={onCreateSubfolder}
           />
         )}
       </div>

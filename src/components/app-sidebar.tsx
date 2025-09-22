@@ -14,12 +14,14 @@ import {
   GalleryVerticalEnd,
   Gauge,
   IdCardLanyard,
+  LayoutList,
   Map,
   Mic,
   PieChart,
   Settings2,
   SquareTerminal,
   Tag,
+  TagIcon,
   TicketsPlane,
 } from "lucide-react";
 
@@ -77,25 +79,36 @@ const data = {
       icon: Tag,
     },
     {
-      title: "Documenten",
-      url: "#",
-      icon: BookOpen,
+      title: "Catalog",
+      url: "/dashboard/catalog",
+      icon: LayoutList,
       items: [
         {
-          title: "General",
-          url: "#",
+          title: "Products",
+          url: "/dashboard/catalog/products",
         },
         {
-          title: "Team",
-          url: "#",
+          title: "Price Books",
+          url: "/dashboard/catalog/pricebooks",
         },
         {
-          title: "Billing",
-          url: "#",
+          title: "Units",
+          url: "/dashboard/catalog/units",
+        },
+      ],
+    },
+    {
+      title: "Quotes",
+      url: "/dashboard/quotes",
+      icon: TagIcon,
+      items: [
+        {
+          title: "All",
+          url: "/dashboard/quotes",
         },
         {
-          title: "Limits",
-          url: "#",
+          title: "New",
+          url: "/dashboard/quotes/new",
         },
       ],
     },

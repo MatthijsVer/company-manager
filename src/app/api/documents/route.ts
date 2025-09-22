@@ -2,24 +2,20 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/lib/auth/session";
 import { prisma } from "@/lib/db";
-import { writeFile, mkdir } from "fs/promises";
-import { join } from "path";
-import { 
-  validateFile, 
-  generateSecureFilePath, 
+import {
+  validateFile,
+  generateSecureFilePath,
   calculateFileHash,
-  FILE_SECURITY 
 } from "@/lib/config/file-security";
+import { join } from "path";
+import { writeFile, mkdir } from "fs/promises";
+import { computePerms } from "@/lib/doc-permissions"; // ✅ add
 
 export async function GET(req: NextRequest) {
   try {
     const session = await requireAuth();
-    
     if (!session.organizationId) {
-      return NextResponse.json(
-        { error: "No organization found" },
-        { status: 404 }
-      );
+      return NextResponse.json({ error: "No organization found" }, { status: 404 });
     }
 
     const searchParams = req.nextUrl.searchParams;
@@ -27,22 +23,21 @@ export async function GET(req: NextRequest) {
     const companyId = searchParams.get("companyId");
     const isTemplate = searchParams.get("isTemplate");
 
-    const where: any = {
-      organizationId: session.organizationId,
-    };
-
+    const where: any = { organizationId: session.organizationId };
     if (folderId) where.folderId = folderId;
     if (isTemplate !== null) where.isTemplate = isTemplate === "true";
 
-    const documents = await prisma.document.findMany({
+    const rawDocs = await prisma.document.findMany({
       where,
       include: {
-        uploadedByUser: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
-            image: true,
+        uploadedByUser: { select: { id: true, name: true, email: true, image: true } },
+        // include minimal permission sets relevant to this user/role (fewer rows than full set)
+        permissions: {
+          where: {
+            OR: [
+              { userId: session.userId },
+              { role: session.role ?? undefined },
+            ],
           },
         },
         folder: {
@@ -51,158 +46,113 @@ export async function GET(req: NextRequest) {
             name: true,
             parentId: true,
             color: true,
+            permissions: {
+              where: {
+                OR: [
+                  { userId: session.userId },
+                  { role: session.role ?? undefined },
+                ],
+              },
+            },
           },
         },
         companyLinks: {
-          include: {
-            company: {
-              select: {
-                id: true,
-                name: true,
-                color: true,
-              },
-            },
-          },
+          include: { company: { select: { id: true, name: true, color: true } } },
         },
         activities: {
           take: 1,
-          orderBy: { createdAt: 'desc' },
-          include: {
-            user: {
-              select: {
-                id: true,
-                name: true,
-                email: true,
-              },
-            },
-          },
+          orderBy: { createdAt: "desc" },
+          include: { user: { select: { id: true, name: true, email: true } } },
         },
       },
-      orderBy: [
-        { createdAt: 'desc' },
-      ],
+      orderBy: [{ createdAt: "desc" }],
     });
 
-    // Transform documents
-    const transformedDocuments = documents.map(doc => ({
+    // permission filter
+    const viewableDocs = rawDocs.filter((d) => computePerms(session, d).canView);
+
+    // optional company filter
+    const filtered = companyId
+      ? viewableDocs.filter((doc) => doc.companyLinks.some((l) => l.company.id === companyId))
+      : viewableDocs;
+
+    const transformed = filtered.map((doc) => ({
       ...doc,
-      companies: doc.companyLinks.map(link => link.company),
+      companies: doc.companyLinks.map((l) => l.company),
       tags: doc.tags ? JSON.parse(doc.tags) : [],
       lastActivity: doc.activities[0] || null,
     }));
 
-    // Filter by company if specified
-    let filteredDocuments = transformedDocuments;
-    if (companyId) {
-      filteredDocuments = transformedDocuments.filter(doc =>
-        doc.companies.some(c => c.id === companyId)
-      );
-    }
-
-    return NextResponse.json({ documents: filteredDocuments });
+    return NextResponse.json({ documents: transformed });
   } catch (error) {
     console.error("Failed to fetch documents:", error);
-    return NextResponse.json(
-      { error: "Failed to fetch documents" },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: "Failed to fetch documents" }, { status: 500 });
   }
 }
+
 
 export async function POST(req: NextRequest) {
   try {
     const session = await requireAuth();
-    
     if (!session.organizationId) {
-      return NextResponse.json(
-        { error: "No organization found" },
-        { status: 404 }
-      );
+      return NextResponse.json({ error: "No organization found" }, { status: 404 });
     }
 
     const formData = await req.formData();
     const file = formData.get("file") as File;
     const folderId = formData.get("folderId") as string;
-    const description = formData.get("description") as string;
-    const tagsJson = formData.get("tags") as string;
+    const description = (formData.get("description") as string) || "";
+    const tagsJson = (formData.get("tags") as string) || "[]";
     const isTemplate = formData.get("isTemplate") === "true";
-    const linkedCompaniesJson = formData.get("linkedCompanies") as string;
+    const linkedCompaniesJson = (formData.get("linkedCompanies") as string) || "[]";
 
     if (!file || !folderId) {
-      return NextResponse.json(
-        { error: "File and folder are required" },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: "File and folder are required" }, { status: 400 });
     }
 
-    // Validate file for security
     const validation = validateFile(file);
     if (!validation.valid) {
-      return NextResponse.json(
-        { error: validation.error },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: validation.error }, { status: 400 });
     }
 
-    // Check folder exists and user has permission
     const folder = await prisma.folder.findFirst({
-      where: {
-        id: folderId,
-        organizationId: session.organizationId,
+      where: { id: folderId, organizationId: session.organizationId },
+      include: {
+        permissions: {
+          where: {
+            OR: [{ userId: session.userId }, { role: session.role ?? undefined }],
+          },
+        },
       },
     });
+    if (!folder) return NextResponse.json({ error: "Folder not found" }, { status: 404 });
 
-    if (!folder) {
-      return NextResponse.json(
-        { error: "Folder not found" },
-        { status: 404 }
-      );
-    }
+    const isAdmin = session.role === "OWNER" || session.role === "ADMIN";
+    const canEditFolder =
+      isAdmin || folder.permissions.some((p) => p.canEdit === true);
 
-    // Check permissions
-    const permission = await prisma.folderPermission.findFirst({
-      where: {
-        folderId,
-        userId: session.userId,
-        canEdit: true,
-      },
-    });
-
-    if (!permission) {
+    if (!canEditFolder) {
       return NextResponse.json(
         { error: "You don't have permission to upload to this folder" },
         { status: 403 }
       );
     }
 
-    // Process file
+    // write file
     const bytes = await file.arrayBuffer();
     const buffer = Buffer.from(bytes);
-    
-    // Calculate file hash for integrity
     const fileHash = await calculateFileHash(buffer);
-    
-    // Generate secure file path
-    const securePath = generateSecureFilePath(
-      session.organizationId,
-      folderId,
-      file.name
-    );
-    
+    const securePath = generateSecureFilePath(session.organizationId, folderId, file.name);
     const uploadPath = join(process.cwd(), "public", "uploads", securePath);
     const uploadDir = join(uploadPath, "..");
     await mkdir(uploadDir, { recursive: true });
     await writeFile(uploadPath, buffer);
-    
     const fileUrl = `/uploads/${securePath}`;
 
-    // Parse tags and linked companies
-    const tags = tagsJson ? JSON.parse(tagsJson) : [];
-    const linkedCompanies = linkedCompaniesJson ? JSON.parse(linkedCompaniesJson) : [];
+    const tags = JSON.parse(tagsJson);
+    const linkedCompanies = JSON.parse(linkedCompaniesJson);
 
-    // Create document with activity tracking
     const document = await prisma.$transaction(async (tx) => {
-      // Create document
       const doc = await tx.document.create({
         data: {
           organizationId: session.organizationId,
@@ -212,10 +162,10 @@ export async function POST(req: NextRequest) {
           fileUrl,
           mimeType: file.type,
           description,
-          tags: tags.length > 0 ? JSON.stringify(tags) : null,
+          tags: tags.length ? JSON.stringify(tags) : null,
           isTemplate,
           fileHash,
-          scanStatus: 'pending', // Will be updated by background job
+          scanStatus: "pending",
           uploadedBy: session.userId,
           companyLinks: {
             create: linkedCompanies.map((companyId: string) => ({
@@ -225,70 +175,34 @@ export async function POST(req: NextRequest) {
           },
         },
         include: {
-          uploadedByUser: {
-            select: {
-              id: true,
-              name: true,
-              email: true,
-              image: true,
-            },
-          },
-          folder: {
-            select: {
-              id: true,
-              name: true,
-              color: true,
-            },
-          },
-          companyLinks: {
-            include: {
-              company: {
-                select: {
-                  id: true,
-                  name: true,
-                  color: true,
-                },
-              },
-            },
-          },
+          uploadedByUser: { select: { id: true, name: true, email: true, image: true } },
+          folder: { select: { id: true, name: true, color: true } },
+          companyLinks: { include: { company: { select: { id: true, name: true, color: true } } } },
         },
       });
 
-      // Create activity log
       await tx.documentActivity.create({
         data: {
           documentId: doc.id,
           userId: session.userId,
-          action: 'uploaded',
-          metadata: {
-            fileName: file.name,
-            fileSize: file.size,
-            folderId,
-            folderName: folder.name,
-          },
+          action: "uploaded",
+          metadata: { fileName: file.name, fileSize: file.size, folderId, folderName: folder.name },
         },
       });
-
-      // TODO: Queue virus scan job here
-      // await queueVirusScan(doc.id, fileUrl);
 
       return doc;
     });
 
-    // Transform response
-    const transformedDocument = {
+    const transformed = {
       ...document,
-      companies: document.companyLinks.map(link => link.company),
+      companies: document.companyLinks.map((l) => l.company),
       tags: document.tags ? JSON.parse(document.tags) : [],
     };
 
-    return NextResponse.json(transformedDocument);
+    return NextResponse.json(transformed);
   } catch (error) {
     console.error("Failed to upload document:", error);
-    return NextResponse.json(
-      { error: "Failed to upload document" },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: "Failed to upload document" }, { status: 500 });
   }
 }
 

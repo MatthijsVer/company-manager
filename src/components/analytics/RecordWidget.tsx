@@ -21,8 +21,8 @@ const RecordWidget = () => {
   const [selectedRecording, setSelectedRecording] = useState(null);
   const [activeTab, setActiveTab] = useState("Voice");
 
-  // Mock data for recordings
-  const recordings = [
+  // Initialize with empty arrays to avoid hydration mismatch
+  const [recordings, setRecordings] = useState([
     {
       id: 1,
       name: "Katherine Cooper",
@@ -30,7 +30,7 @@ const RecordWidget = () => {
       date: "Today",
       transcription:
         "- Hello, hello Elena!\n- Hello Kate! What did you wanna\n- I want to ask, will you go for a walk today? The weather is so good outside!\n- I would love to, but only in an hour.",
-      waveformData: Array.from({ length: 60 }, () => Math.random() * 40 - 20),
+      waveformData: [],
     },
     {
       id: 2,
@@ -38,7 +38,7 @@ const RecordWidget = () => {
       duration: "00:00:00",
       date: "June 11, 2024",
       transcription: "",
-      waveformData: Array.from({ length: 60 }, () => Math.random() * 40 - 20),
+      waveformData: [],
     },
     {
       id: 3,
@@ -46,9 +46,19 @@ const RecordWidget = () => {
       duration: "00:00:00",
       date: "June 11, 2024",
       transcription: "",
-      waveformData: Array.from({ length: 60 }, () => Math.random() * 40 - 20),
+      waveformData: [],
     },
-  ];
+  ]);
+
+  // Generate waveform data on client side only
+  useEffect(() => {
+    setRecordings(prevRecordings => 
+      prevRecordings.map(recording => ({
+        ...recording,
+        waveformData: Array.from({ length: 60 }, () => Math.random() * 40 - 20),
+      }))
+    );
+  }, []);
 
   // Mock waveform data for active recording
   const activeWaveformData = Array.from(
@@ -113,7 +123,7 @@ const RecordWidget = () => {
             }`}
             onClick={() => setSelectedRecording(recording)}
           >
-            {recording.id === 1 && (
+            {recording.id === 1 && recording.waveformData.length > 0 && (
               <WaveformVisualization
                 data={recording.waveformData}
                 height={60}

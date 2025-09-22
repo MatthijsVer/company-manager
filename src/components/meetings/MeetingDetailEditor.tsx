@@ -504,6 +504,7 @@ export default function MeetingDetailEditor(props: {
               {minutesHTML != null &&
                 !isFullscreen && ( // ⬅️ guard
                   <RichNoteEditor
+                    data-theming-css-demo
                     initialHTML={minutesHTML}
                     isFullScreen={isFullscreen}
                     fullHeight

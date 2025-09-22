@@ -244,9 +244,9 @@ button {
   border-radius: 15px 15px 0 0;
 }
 
-/* .bn-container[data-theming-css-demo] .bn-editor * {
-
-} */
+.bn-container[data-theming-css-demo] {
+  max-height: 90vh;
+}
 
 .bn-editor {
   height: 100%;
