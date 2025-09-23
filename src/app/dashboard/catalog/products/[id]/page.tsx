@@ -15,6 +15,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
+import { Switch } from "@/components/ui/switch";
 import {
   Plus,
   Trash2,
@@ -33,8 +34,11 @@ import {
   Settings,
 } from "lucide-react";
 import { toast } from "sonner";
+import { InlinePricingInfo } from "@/components/quotes/PricingDetails";
 
 type Unit = { id: string; code: string; label: string };
+type Category = { id: string; name: string; slug?: string };
+type BundleProduct = { id: string; name: string; sku?: string | null };
 type Variant = {
   id: string;
   sku?: string | null;
@@ -63,32 +67,208 @@ type Product = {
   variants: Variant[];
 };
 
+type PriceBook = {
+  id: string;
+  name: string;
+  currency: string;
+  isDefault: boolean;
+  isActive: boolean;
+};
+
+type PriceEntry = {
+  id: string;
+  unitPrice: string;
+  minQty?: string | null;
+  maxQty?: string | null;
+  discountPct?: string | null;
+  productId?: string | null;
+  variantId?: string | null;
+};
+
 export default function ProductEditorPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
   const [product, setProduct] = useState<Product | null>(null);
   const [units, setUnits] = useState<Unit[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [availableProducts, setAvailableProducts] = useState<BundleProduct[]>([]);
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<"general" | "variants" | "bundle">(
+  const [activeTab, setActiveTab] = useState<"general" | "variants" | "bundle" | "pricing">(
     "general"
   );
+  const [priceBooks, setPriceBooks] = useState<PriceBook[]>([]);
+  const [productPrices, setProductPrices] = useState<{[priceBookId: string]: PriceEntry[]}>({});
+  const [showAddPrice, setShowAddPrice] = useState<string | null>(null);
+  const [priceForm, setPriceForm] = useState({
+    unitPrice: "",
+    minQty: "",
+    maxQty: "",
+    discountPct: "",
+    variantId: "",
+  });
+  const [showQuickSetup, setShowQuickSetup] = useState(false);
+  const [quickSetupPrice, setQuickSetupPrice] = useState("");
 
   async function load() {
     setLoading(true);
     try {
-      const [p, u] = await Promise.all([
+      const [p, u, products, priceBooks] = await Promise.all([
         fetch(`/api/catalog/products/${id}`, { cache: "no-store" }).then((r) =>
           r.json()
         ),
         fetch(`/api/catalog/units`, { cache: "no-store" }).then((r) =>
           r.json()
         ),
+        fetch(`/api/catalog/products?active=true`, { cache: "no-store" }).then((r) =>
+          r.json()
+        ),
+        fetch(`/api/catalog/pricebooks`, { cache: "no-store" }).then((r) =>
+          r.json()
+        ),
       ]);
       setProduct(p);
       setUnits(u.items || []);
+      // Filter out the current product from available products for bundles
+      const otherProducts = (products.items || [])
+        .filter((prod: any) => prod.id !== id)
+        .map((prod: any) => ({
+          id: prod.id,
+          name: prod.name,
+          sku: prod.sku,
+        }));
+      setAvailableProducts(otherProducts);
+      
+      const activeBooks = (priceBooks.items || []).filter((pb: any) => pb.isActive);
+      setPriceBooks(activeBooks);
+      
+      // Load pricing data for each price book
+      if (activeBooks.length > 0) {
+        loadPricingData(activeBooks);
+      }
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function loadPricingData(books: PriceBook[]) {
+    const priceData: {[priceBookId: string]: PriceEntry[]} = {};
+    
+    await Promise.all(
+      books.map(async (book) => {
+        try {
+          const response = await fetch(`/api/catalog/pricebooks/${book.id}/entries`, {
+            cache: "no-store"
+          });
+          const data = await response.json();
+          
+          // Filter entries for this product or its variants
+          const productEntries = (data.entries || []).filter((entry: any) => 
+            entry.productId === id || 
+            (entry.variantId && product?.variants.some(v => v.id === entry.variantId))
+          );
+          
+          priceData[book.id] = productEntries;
+        } catch (err) {
+          console.error(`Failed to load pricing for ${book.name}:`, err);
+          priceData[book.id] = [];
+        }
+      })
+    );
+    
+    setProductPrices(priceData);
+  }
+
+  async function addPriceEntry(priceBookId: string) {
+    if (!priceForm.unitPrice) {
+      toast.error("Unit price is required");
+      return;
+    }
+
+    const body: any = { 
+      unitPrice: Number(priceForm.unitPrice),
+      productId: priceForm.variantId ? undefined : id,
+      variantId: priceForm.variantId || undefined,
+    };
+    
+    if (priceForm.minQty) body.minQty = Number(priceForm.minQty);
+    if (priceForm.maxQty) body.maxQty = Number(priceForm.maxQty);
+    if (priceForm.discountPct) body.discountPct = Number(priceForm.discountPct);
+
+    try {
+      const res = await fetch(`/api/catalog/pricebooks/${priceBookId}/entries`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+
+      if (!res.ok) {
+        const j = await res.json();
+        toast.error(j.error || "Failed to add price entry");
+        return;
+      }
+
+      toast.success("Price entry added successfully");
+      setPriceForm({
+        unitPrice: "",
+        minQty: "",
+        maxQty: "",
+        discountPct: "",
+        variantId: "",
+      });
+      setShowAddPrice(null);
+      
+      // Reload pricing data
+      loadPricingData(priceBooks);
+    } catch (error) {
+      toast.error("Failed to add price entry");
+    }
+  }
+
+  async function quickSetupPricing() {
+    if (!quickSetupPrice) {
+      toast.error("Base price is required");
+      return;
+    }
+
+    const basePrice = Number(quickSetupPrice);
+    const promises = priceBooks.map(async (book) => {
+      // Check if this product already has pricing in this book
+      const existingEntries = productPrices[book.id] || [];
+      const hasProductEntry = existingEntries.some(entry => !entry.variantId);
+      
+      if (hasProductEntry) {
+        return; // Skip if product already has pricing
+      }
+
+      try {
+        const res = await fetch(`/api/catalog/pricebooks/${book.id}/entries`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            unitPrice: basePrice,
+            productId: id,
+          }),
+        });
+
+        if (!res.ok) {
+          const j = await res.json();
+          throw new Error(j.error || "Failed to add price entry");
+        }
+      } catch (error) {
+        console.error(`Failed to add pricing to ${book.name}:`, error);
+        throw error;
+      }
+    });
+
+    try {
+      await Promise.all(promises);
+      toast.success("Base pricing added to all price books");
+      setQuickSetupPrice("");
+      setShowQuickSetup(false);
+      loadPricingData(priceBooks);
+    } catch (error) {
+      toast.error("Failed to add pricing to some price books");
     }
   }
 
@@ -285,15 +465,23 @@ export default function ProductEditorPage() {
             {product.sku && (
               <span className="text-xs text-gray-500">SKU: {product.sku}</span>
             )}
-            <span
-              className={`text-[10px] font-medium uppercase px-2 py-1 rounded-full ${
-                product.isActive
-                  ? "bg-green-50 text-green-700 ring-1 ring-inset ring-green-600/20"
-                  : "bg-gray-50 text-gray-700 ring-1 ring-inset ring-gray-600/20"
-              }`}
-            >
-              {product.isActive ? "Active" : "Inactive"}
-            </span>
+            <div className="flex items-center gap-2">
+              <Switch
+                checked={product.isActive}
+                onCheckedChange={(checked) =>
+                  setProduct({ ...product, isActive: checked })
+                }
+              />
+              <span
+                className={`text-[10px] font-medium uppercase px-2 py-1 rounded-full ${
+                  product.isActive
+                    ? "bg-green-50 text-green-700 ring-1 ring-inset ring-green-600/20"
+                    : "bg-gray-50 text-gray-700 ring-1 ring-inset ring-gray-600/20"
+                }`}
+              >
+                {product.isActive ? "Active" : "Inactive"}
+              </span>
+            </div>
           </div>
         </div>
         <div className="flex items-center gap-2">
@@ -350,6 +538,16 @@ export default function ProductEditorPage() {
                 Bundle Items
               </button>
             )}
+            <button
+              onClick={() => setActiveTab("pricing")}
+              className={`pb-2 px-1 text-sm font-medium border-b-2 transition-colors ${
+                activeTab === "pricing"
+                  ? "text-gray-900 border-gray-900"
+                  : "text-gray-500 border-transparent hover:text-gray-700"
+              }`}
+            >
+              Pricing
+            </button>
           </div>
 
           {/* Tab Content */}
@@ -636,23 +834,52 @@ export default function ProductEditorPage() {
               {bundleItems.length > 0 ? (
                 <>
                   <div className="grid grid-cols-12 gap-4 px-6 py-3 bg-gray-50 border-b border-gray-200">
-                    <div className="col-span-8 text-xs font-medium text-gray-600 uppercase tracking-wider">
+                    <div className="col-span-7 text-xs font-medium text-gray-600 uppercase tracking-wider">
                       Product
                     </div>
-                    <div className="col-span-4 text-xs font-medium text-gray-600 uppercase tracking-wider">
+                    <div className="col-span-3 text-xs font-medium text-gray-600 uppercase tracking-wider">
                       Quantity
+                    </div>
+                    <div className="col-span-2 text-xs font-medium text-gray-600 uppercase tracking-wider">
+                      Actions
                     </div>
                   </div>
                   {bundleItems.map((b, i) => (
                     <div
                       key={`${b.childId}-${i}`}
-                      className="grid grid-cols-12 gap-4 px-6 py-4 items-center border-b border-gray-100 last:border-0 hover:bg-gray-50/50 transition-colors"
+                      className="grid grid-cols-12 gap-4 px-6 py-4 items-center border-b border-gray-100 last:border-0 hover:bg-gray-50/50 transition-colors group"
                     >
-                      <div className="col-span-8">
+                      <div className="col-span-7">
                         <span className="text-sm text-gray-900">{b.name}</span>
                       </div>
-                      <div className="col-span-4">
-                        <span className="text-sm text-gray-700">×{b.qty}</span>
+                      <div className="col-span-3">
+                        <Input
+                          type="number"
+                          value={b.qty}
+                          onChange={(e) => {
+                            const newQty = e.target.value;
+                            setBundleItems(prev => 
+                              prev.map((item, idx) => 
+                                idx === i ? { ...item, qty: newQty } : item
+                              )
+                            );
+                          }}
+                          className="h-8 w-16"
+                          min="1"
+                          step="1"
+                        />
+                      </div>
+                      <div className="col-span-2">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity"
+                          onClick={() => {
+                            setBundleItems(prev => prev.filter((_, idx) => idx !== i));
+                          }}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
                       </div>
                     </div>
                   ))}
@@ -666,31 +893,48 @@ export default function ProductEditorPage() {
 
               <div className="px-6 py-4 bg-gray-50 border-t">
                 <div className="flex gap-2">
-                  <Input
-                    placeholder="Child Product ID"
-                    value={bundleDraft.childId}
-                    onChange={(e) =>
-                      setBundleDraft((s) => ({ ...s, childId: e.target.value }))
+                  <Select
+                    value={bundleDraft.childId || "none"}
+                    onValueChange={(value) =>
+                      setBundleDraft((s) => ({ 
+                        ...s, 
+                        childId: value === "none" ? "" : value 
+                      }))
                     }
-                    className="h-9 flex-1"
-                  />
+                  >
+                    <SelectTrigger className="h-9 flex-1">
+                      <SelectValue placeholder="Select product to add" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">Select a product</SelectItem>
+                      {availableProducts.map((prod) => (
+                        <SelectItem key={prod.id} value={prod.id}>
+                          {prod.name} {prod.sku ? `(${prod.sku})` : ''}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                   <Input
+                    type="number"
                     placeholder="Qty"
                     value={bundleDraft.qty}
                     onChange={(e) =>
                       setBundleDraft((s) => ({ ...s, qty: e.target.value }))
                     }
                     className="h-9 w-20"
+                    min="1"
+                    step="1"
                   />
                   <Button
                     size="sm"
                     onClick={() => {
                       if (!bundleDraft.childId) return;
+                      const selectedProduct = availableProducts.find(p => p.id === bundleDraft.childId);
                       setBundleItems((prev) => [
                         ...prev,
                         {
                           childId: bundleDraft.childId,
-                          name: bundleDraft.childId,
+                          name: selectedProduct?.name || bundleDraft.childId,
                           qty: bundleDraft.qty || "1",
                         },
                       ]);
@@ -702,6 +946,312 @@ export default function ProductEditorPage() {
                     Add
                   </Button>
                 </div>
+              </div>
+            </div>
+          )}
+
+          {activeTab === "pricing" && (
+            <div className="bg-white rounded-xl overflow-hidden border border-gray-200">
+              <div className="px-6 pt-5 pb-3 border-b border-gray-200">
+                <h3 className="text-sm font-semibold text-gray-900">
+                  Pricing Information
+                </h3>
+                <p className="text-sm text-gray-500 mt-1">
+                  View pricing across different price books for this product
+                </p>
+              </div>
+
+              <div className="p-6 space-y-6">
+                {product.defaultCost && (
+                  <div className="border rounded-lg p-4">
+                    <h4 className="font-medium text-gray-900 mb-2 flex items-center gap-2">
+                      <DollarSign className="h-4 w-4" />
+                      Default Cost
+                    </h4>
+                    <div className="text-2xl font-semibold text-gray-900">
+                      ${parseFloat(product.defaultCost).toFixed(2)}
+                    </div>
+                    <p className="text-sm text-gray-500 mt-1">
+                      Base cost used for margin calculations
+                    </p>
+                  </div>
+                )}
+
+                {priceBooks.length > 0 ? (
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between">
+                      <h4 className="font-medium text-gray-900 flex items-center gap-2">
+                        <Package className="h-4 w-4" />
+                        Price Book Entries
+                      </h4>
+                      {/* Check if product has no pricing in any book */}
+                      {Object.values(productPrices).every(entries => 
+                        entries.length === 0 || entries.every(entry => entry.variantId)
+                      ) && (
+                        <Button
+                          size="sm"
+                          onClick={() => setShowQuickSetup(!showQuickSetup)}
+                          variant="outline"
+                        >
+                          <Settings className="h-3 w-3 mr-1" />
+                          Quick Setup
+                        </Button>
+                      )}
+                    </div>
+
+                    {showQuickSetup && (
+                      <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+                        <h5 className="font-medium text-yellow-900 mb-2">
+                          Quick Price Setup
+                        </h5>
+                        <p className="text-sm text-yellow-700 mb-3">
+                          Add the same base price to all active price books for this product.
+                        </p>
+                        <div className="flex items-center gap-2">
+                          <Input
+                            type="number"
+                            step="0.01"
+                            placeholder="Base price"
+                            value={quickSetupPrice}
+                            onChange={(e) => setQuickSetupPrice(e.target.value)}
+                            className="w-32 h-8"
+                          />
+                          <Button
+                            size="sm"
+                            onClick={quickSetupPricing}
+                            disabled={!quickSetupPrice}
+                          >
+                            Add to All Books
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => {
+                              setShowQuickSetup(false);
+                              setQuickSetupPrice("");
+                            }}
+                          >
+                            Cancel
+                          </Button>
+                        </div>
+                      </div>
+                    )}
+                    
+                    {priceBooks.map((book) => {
+                      const entries = productPrices[book.id] || [];
+                      const hasEntries = entries.length > 0;
+                      
+                      return (
+                        <div key={book.id} className="border rounded-lg overflow-hidden">
+                          <div className="px-4 py-3 bg-gray-50 border-b flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                              <h5 className="font-medium text-gray-900">{book.name}</h5>
+                              <span className="text-xs text-gray-500">({book.currency})</span>
+                              {book.isDefault && (
+                                <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">
+                                  Default
+                                </span>
+                              )}
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <span className="text-xs text-gray-500">
+                                {entries.length} entries
+                              </span>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => setShowAddPrice(showAddPrice === book.id ? null : book.id)}
+                                className="h-7 px-2"
+                              >
+                                <Plus className="h-3 w-3 mr-1" />
+                                Add Price
+                              </Button>
+                            </div>
+                          </div>
+                          
+                          {showAddPrice === book.id && (
+                            <div className="px-4 py-4 bg-blue-50 border-b">
+                              <h6 className="text-sm font-medium text-gray-900 mb-3">
+                                Add New Price Entry
+                              </h6>
+                              <div className="grid grid-cols-2 gap-3 mb-3">
+                                <div>
+                                  <label className="text-xs font-medium text-gray-600 block mb-1">
+                                    Unit Price *
+                                  </label>
+                                  <Input
+                                    type="number"
+                                    step="0.01"
+                                    placeholder="0.00"
+                                    value={priceForm.unitPrice}
+                                    onChange={(e) => setPriceForm({...priceForm, unitPrice: e.target.value})}
+                                    className="h-8"
+                                  />
+                                </div>
+                                <div>
+                                  <label className="text-xs font-medium text-gray-600 block mb-1">
+                                    Variant (Optional)
+                                  </label>
+                                  <Select
+                                    value={priceForm.variantId}
+                                    onValueChange={(value) => setPriceForm({...priceForm, variantId: value === "none" ? "" : value})}
+                                  >
+                                    <SelectTrigger className="h-8">
+                                      <SelectValue placeholder="Product (default)" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      <SelectItem value="none">Product (default)</SelectItem>
+                                      {product.variants.map((variant) => (
+                                        <SelectItem key={variant.id} value={variant.id}>
+                                          {variant.name || `Variant ${variant.id}`}
+                                          {variant.sku && ` (${variant.sku})`}
+                                        </SelectItem>
+                                      ))}
+                                    </SelectContent>
+                                  </Select>
+                                </div>
+                                <div>
+                                  <label className="text-xs font-medium text-gray-600 block mb-1">
+                                    Min Qty
+                                  </label>
+                                  <Input
+                                    type="number"
+                                    placeholder="1"
+                                    value={priceForm.minQty}
+                                    onChange={(e) => setPriceForm({...priceForm, minQty: e.target.value})}
+                                    className="h-8"
+                                  />
+                                </div>
+                                <div>
+                                  <label className="text-xs font-medium text-gray-600 block mb-1">
+                                    Max Qty
+                                  </label>
+                                  <Input
+                                    type="number"
+                                    placeholder="Unlimited"
+                                    value={priceForm.maxQty}
+                                    onChange={(e) => setPriceForm({...priceForm, maxQty: e.target.value})}
+                                    className="h-8"
+                                  />
+                                </div>
+                              </div>
+                              <div className="mb-3">
+                                <label className="text-xs font-medium text-gray-600 block mb-1">
+                                  Discount %
+                                </label>
+                                <Input
+                                  type="number"
+                                  step="0.01"
+                                  placeholder="0"
+                                  value={priceForm.discountPct}
+                                  onChange={(e) => setPriceForm({...priceForm, discountPct: e.target.value})}
+                                  className="h-8 w-32"
+                                />
+                              </div>
+                              <div className="flex gap-2">
+                                <Button
+                                  size="sm"
+                                  onClick={() => addPriceEntry(book.id)}
+                                  disabled={!priceForm.unitPrice}
+                                >
+                                  Add Entry
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => {
+                                    setShowAddPrice(null);
+                                    setPriceForm({
+                                      unitPrice: "",
+                                      minQty: "",
+                                      maxQty: "",
+                                      discountPct: "",
+                                      variantId: "",
+                                    });
+                                  }}
+                                >
+                                  Cancel
+                                </Button>
+                              </div>
+                            </div>
+                          )}
+                          
+                          {hasEntries ? (
+                            <div className="divide-y divide-gray-100">
+                              {entries.map((entry) => {
+                                const isVariant = !!entry.variantId;
+                                const variant = isVariant ? product.variants.find(v => v.id === entry.variantId) : null;
+                                
+                                return (
+                                  <div key={entry.id} className="px-4 py-3">
+                                    <div className="flex items-center justify-between">
+                                      <div className="flex-1">
+                                        <div className="flex items-center gap-2">
+                                          <span className="text-sm font-medium text-gray-900">
+                                            {isVariant ? (variant?.name || 'Unknown Variant') : product.name}
+                                          </span>
+                                          {isVariant && (
+                                            <span className="text-xs bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full">
+                                              Variant
+                                            </span>
+                                          )}
+                                        </div>
+                                        {isVariant && variant?.sku && (
+                                          <p className="text-xs text-gray-500 mt-0.5">
+                                            SKU: {variant.sku}
+                                          </p>
+                                        )}
+                                        <div className="flex items-center gap-4 mt-1 text-xs text-gray-500">
+                                          <span>Qty: {entry.minQty || '1'} - {entry.maxQty || '∞'}</span>
+                                          {entry.discountPct && (
+                                            <span className="text-green-600">
+                                              -{entry.discountPct}% discount
+                                            </span>
+                                          )}
+                                        </div>
+                                      </div>
+                                      <div className="text-right">
+                                        <div className="text-lg font-semibold text-gray-900">
+                                          {book.currency} {parseFloat(entry.unitPrice).toFixed(2)}
+                                        </div>
+                                        <InlinePricingInfo
+                                          productId={isVariant ? undefined : id}
+                                          variantId={isVariant ? entry.variantId : undefined}
+                                          quantity={1}
+                                          priceBookId={book.id}
+                                          currency={book.currency}
+                                        />
+                                      </div>
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          ) : (
+                            <div className="px-4 py-8 text-center text-sm text-gray-500">
+                              <DollarSign className="h-8 w-8 text-gray-300 mx-auto mb-2" />
+                              <p>No pricing entries for this product in {book.name}</p>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => setShowAddPrice(book.id)}
+                                className="mt-2"
+                              >
+                                <Plus className="h-3 w-3 mr-1" />
+                                Add First Price
+                              </Button>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <div className="text-center py-8">
+                    <DollarSign className="h-12 w-12 text-gray-300 mx-auto mb-3" />
+                    <p className="text-sm text-gray-500">No active price books found</p>
+                  </div>
+                )}
               </div>
             </div>
           )}

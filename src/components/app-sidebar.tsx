@@ -17,6 +17,7 @@ import {
   LayoutList,
   Map,
   Mic,
+  PanelsTopLeft,
   PieChart,
   Settings2,
   SquareTerminal,
@@ -76,7 +77,7 @@ const data = {
     {
       title: "Projecten",
       url: "/dashboard/projects",
-      icon: Tag,
+      icon: PanelsTopLeft,
     },
     {
       title: "Catalog",
@@ -109,6 +110,21 @@ const data = {
         {
           title: "New",
           url: "/dashboard/quotes/new",
+        },
+      ],
+    },
+    {
+      title: "Invoices",
+      url: "/dashboard/invoices",
+      icon: Tag,
+      items: [
+        {
+          title: "All",
+          url: "/dashboard/invoices",
+        },
+        {
+          title: "New",
+          url: "/dashboard/invoices/new",
         },
       ],
     },

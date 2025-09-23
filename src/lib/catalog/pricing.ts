@@ -55,7 +55,7 @@ async function pickActivePriceBook(orgId: string, explicitId?: string) {
   }
   return prisma.priceBook.findFirst({
     where: { organizationId: orgId, isActive: true, isDefault: true },
-    orderBy: { updatedAt: "desc" },
+    orderBy: { createdAt: "desc" },
   });
 }
 
@@ -71,9 +71,10 @@ function bestEntryForQty(entries: any[], qty: Decimal, asOf?: Date) {
   candidates.sort((a, b) => {
     const aMin = dec(a.minQty || 0);
     const bMin = dec(b.minQty || 0);
-    // prefer the higher minQty and then newer updatedAt
+    // prefer the higher minQty (more specific tier)
     if (!aMin.eq(bMin)) return bMin.minus(aMin).toNumber();
-    return new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime();
+    // If same minQty, prefer by id (deterministic ordering)
+    return a.id.localeCompare(b.id);
   });
   return candidates[0];
 }
@@ -127,7 +128,7 @@ export async function quoteUnitPrice(input: PriceInput): Promise<PriceResult> {
           ...(input.variantId ? [{ variantId: input.variantId }] : []),
         ],
       },
-      orderBy: [{ minQty: "asc" }, { updatedAt: "desc" }],
+      orderBy: [{ minQty: "asc" }],
       include: { unit: true },
     });
     if (!entries.length) return { ok: false, error: "No price found in selected price book" };

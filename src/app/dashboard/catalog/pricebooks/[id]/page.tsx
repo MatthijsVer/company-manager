@@ -31,6 +31,7 @@ import {
   Settings,
   Edit,
 } from "lucide-react";
+import { ProductSelector } from "@/components/quotes/ProductSelector";
 
 type Entry = {
   id: string;
@@ -61,6 +62,7 @@ export default function PriceBookEditor() {
   const [saving, setSaving] = useState(false);
   const [showAddEntry, setShowAddEntry] = useState(false);
   const [activeTab, setActiveTab] = useState<"settings" | "entries">("entries");
+  const [editingEntry, setEditingEntry] = useState<string | null>(null);
 
   const [draft, setDraft] = useState({
     productId: "",
@@ -159,6 +161,21 @@ export default function PriceBookEditor() {
     else {
       toast.success("Entry deleted");
       setEntries((prev) => prev.filter((e) => e.id !== entryId));
+    }
+  }
+
+  async function updateEntry(entryId: string, patch: Partial<Entry>) {
+    const res = await fetch(`/api/catalog/pricebook-entries/${entryId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(patch),
+    });
+    if (!res.ok) {
+      const j = await res.json();
+      toast.error(j.error || "Failed to update entry");
+    } else {
+      toast.success("Entry updated");
+      load();
     }
   }
 
@@ -262,41 +279,23 @@ export default function PriceBookEditor() {
                     </h3>
                   </div>
                   <div className="p-6 space-y-4">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div>
-                        <label className="text-xs font-medium text-gray-600 uppercase tracking-wider block mb-2">
-                          Product ID
-                        </label>
-                        <Input
-                          className="h-9"
-                          placeholder="Enter product ID"
-                          value={draft.productId}
-                          onChange={(e) =>
-                            setDraft((d) => ({
-                              ...d,
-                              productId: e.target.value,
-                              variantId: "",
-                            }))
-                          }
-                        />
-                      </div>
-                      <div>
-                        <label className="text-xs font-medium text-gray-600 uppercase tracking-wider block mb-2">
-                          Or Variant ID
-                        </label>
-                        <Input
-                          className="h-9"
-                          placeholder="Enter variant ID"
-                          value={draft.variantId}
-                          onChange={(e) =>
-                            setDraft((d) => ({
-                              ...d,
-                              variantId: e.target.value,
-                              productId: "",
-                            }))
-                          }
-                        />
-                      </div>
+                    <div className="mb-4">
+                      <label className="text-xs font-medium text-gray-600 uppercase tracking-wider block mb-2">
+                        Product Selection
+                      </label>
+                      <ProductSelector
+                        value={draft.productId}
+                        variantId={draft.variantId}
+                        onSelect={(productId, variantId) => {
+                          setDraft((d) => ({
+                            ...d,
+                            productId: productId || "",
+                            variantId: variantId || "",
+                          }));
+                        }}
+                        priceBookId={id}
+                        quantity={1}
+                      />
                     </div>
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                       <div>
@@ -448,9 +447,37 @@ export default function PriceBookEditor() {
                         <div className="col-span-2">
                           <div className="flex items-center gap-1">
                             <DollarSign className="h-3 w-3 text-gray-400" />
-                            <span className="text-sm font-medium">
-                              {entry.unitPrice}
-                            </span>
+                            {editingEntry === entry.id ? (
+                              <Input
+                                type="number"
+                                step="0.01"
+                                defaultValue={entry.unitPrice}
+                                className="h-7 w-20 text-sm"
+                                onBlur={(e) => {
+                                  const newPrice = e.target.value;
+                                  if (newPrice && newPrice !== entry.unitPrice) {
+                                    updateEntry(entry.id, { unitPrice: newPrice });
+                                  }
+                                  setEditingEntry(null);
+                                }}
+                                onKeyDown={(e) => {
+                                  if (e.key === "Enter") {
+                                    e.currentTarget.blur();
+                                  }
+                                  if (e.key === "Escape") {
+                                    setEditingEntry(null);
+                                  }
+                                }}
+                                autoFocus
+                              />
+                            ) : (
+                              <span 
+                                className="text-sm font-medium cursor-pointer hover:text-blue-600"
+                                onClick={() => setEditingEntry(entry.id)}
+                              >
+                                {entry.unitPrice}
+                              </span>
+                            )}
                           </div>
                         </div>
                         <div className="col-span-2">
@@ -475,7 +502,17 @@ export default function PriceBookEditor() {
                             variant="ghost"
                             size="icon"
                             className="h-8 w-8"
+                            onClick={() => setEditingEntry(editingEntry === entry.id ? null : entry.id)}
+                            title="Edit entry"
+                          >
+                            <Edit className="h-4 w-4 text-gray-500" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8"
                             onClick={() => removeEntry(entry.id)}
+                            title="Delete entry"
                           >
                             <Trash2 className="h-4 w-4 text-red-500" />
                           </Button>
