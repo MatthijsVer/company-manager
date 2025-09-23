@@ -4,7 +4,7 @@ import { InvoiceViewer } from "@/components/invoices/InvoiceViewer";
 import { notFound } from "next/navigation";
 
 async function getInvoice(id: string, organizationId: string) {
-  return prisma.invoice.findFirst({
+  const invoice = await prisma.invoice.findFirst({
     where: {
       id,
       organizationId,
@@ -34,6 +34,32 @@ async function getInvoice(id: string, organizationId: string) {
       }
     },
   });
+
+  if (!invoice) return null;
+
+  // Convert Decimal fields to strings for JSON serialization
+  return {
+    ...invoice,
+    subtotal: invoice.subtotal.toString(),
+    taxTotal: invoice.taxTotal.toString(),
+    total: invoice.total.toString(),
+    amountPaid: invoice.amountPaid.toString(),
+    amountDue: invoice.amountDue.toString(),
+    lines: invoice.lines.map(line => ({
+      ...line,
+      quantity: line.quantity.toString(),
+      unitPrice: line.unitPrice.toString(),
+      discountPct: line.discountPct?.toString() || null,
+      taxRatePct: line.taxRatePct?.toString() || null,
+      taxAmount: line.taxAmount.toString(),
+      lineSubtotal: line.lineSubtotal.toString(),
+      lineTotal: line.lineTotal.toString(),
+    })),
+    payments: invoice.payments.map(payment => ({
+      ...payment,
+      amount: payment.amount.toString(),
+    })),
+  };
 }
 
 

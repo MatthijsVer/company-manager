@@ -21,9 +21,16 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
-import { Plus, CreditCard, CheckCircle, Calendar } from "lucide-react";
+import {
+  Plus,
+  CreditCard,
+  CheckCircle,
+  Calendar,
+  User,
+  Hash,
+  PlusCircle,
+} from "lucide-react";
 
 type Payment = {
   id: string;
@@ -48,12 +55,12 @@ interface PaymentTrackerProps {
   onPaymentAdded?: () => void;
 }
 
-export function PaymentTracker({ 
-  invoiceId, 
-  currency, 
-  amountDue, 
+export function PaymentTracker({
+  invoiceId,
+  currency,
+  amountDue,
   status,
-  onPaymentAdded 
+  onPaymentAdded,
 }: PaymentTrackerProps) {
   const [payments, setPayments] = useState<Payment[]>([]);
   const [loading, setLoading] = useState(true);
@@ -63,7 +70,7 @@ export function PaymentTracker({
     amount: "",
     method: "BANK_TRANSFER",
     reference: "",
-    receivedDate: new Date().toISOString().split('T')[0],
+    receivedDate: new Date().toISOString().split("T")[0],
     notes: "",
   });
 
@@ -113,7 +120,7 @@ export function PaymentTracker({
         amount: "",
         method: "BANK_TRANSFER",
         reference: "",
-        receivedDate: new Date().toISOString().split('T')[0],
+        receivedDate: new Date().toISOString().split("T")[0],
         notes: "",
       });
       toast.success("Payment recorded successfully");
@@ -125,72 +132,124 @@ export function PaymentTracker({
     }
   }
 
-  function getMethodBadge(method: string) {
-    const config = {
-      CASH: { variant: "default" as const, label: "Cash" },
-      CHECK: { variant: "outline" as const, label: "Check" },
-      BANK_TRANSFER: { variant: "default" as const, label: "Bank Transfer" },
-      CREDIT_CARD: { variant: "default" as const, label: "Credit Card" },
-      OTHER: { variant: "secondary" as const, label: "Other" },
+  function getMethodColor(method: string) {
+    switch (method) {
+      case "BANK_TRANSFER":
+        return "bg-blue-50 text-blue-700 ring-1 ring-inset ring-blue-600/20";
+      case "CREDIT_CARD":
+        return "bg-purple-50 text-purple-700 ring-1 ring-inset ring-purple-600/20";
+      case "CHECK":
+        return "bg-gray-50 text-gray-700 ring-1 ring-inset ring-gray-600/20";
+      case "CASH":
+        return "bg-green-50 text-green-700 ring-1 ring-inset ring-green-600/20";
+      default:
+        return "bg-gray-50 text-gray-700 ring-1 ring-inset ring-gray-600/20";
+    }
+  }
+
+  function getMethodLabel(method: string) {
+    const labels: Record<string, string> = {
+      BANK_TRANSFER: "Bank Transfer",
+      CREDIT_CARD: "Credit Card",
+      CHECK: "Check",
+      CASH: "Cash",
+      OTHER: "Other",
     };
-    
-    const { variant, label } = config[method as keyof typeof config] || config.OTHER;
-    return <Badge variant={variant}>{label}</Badge>;
+    return labels[method] || method;
   }
 
   if (loading) {
-    return <div className="text-sm text-muted-foreground">Loading payments...</div>;
+    return <div className="text-sm text-gray-500">Loading payments...</div>;
   }
 
-  const canAddPayment = status !== 'PAID' && status !== 'CANCELLED' && status !== 'REFUNDED' && amountDue > 0;
+  const canAddPayment =
+    status !== "PAID" &&
+    status !== "CANCELLED" &&
+    status !== "REFUNDED" &&
+    amountDue > 0;
+  const totalPaid = payments.reduce((sum, p) => sum + Number(p.amount), 0);
 
   return (
     <div className="space-y-4">
+      {/* Header with summary */}
       <div className="flex items-center justify-between">
-        <h3 className="text-lg font-medium">Payments</h3>
+        <div>
+          <p className="text-xs text-gray-500 uppercase tracking-wider">
+            Payment Summary
+          </p>
+          <div className="flex items-center gap-4 mt-1">
+            <div>
+              <span className="text-sm text-gray-600">Total Paid: </span>
+              <span className="font-medium">
+                {currency} {totalPaid.toFixed(2)}
+              </span>
+            </div>
+            {amountDue > 0 && (
+              <div>
+                <span className="text-sm text-gray-600">Remaining: </span>
+                <span className="font-medium text-red-600">
+                  {currency} {amountDue.toFixed(2)}
+                </span>
+              </div>
+            )}
+          </div>
+        </div>
         {canAddPayment && (
           <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
             <DialogTrigger asChild>
               <Button size="sm">
-                <Plus className="h-4 w-4 mr-2" />
-                Record Payment
+                <PlusCircle className="h-4 w-4 mr-2" />
               </Button>
             </DialogTrigger>
             <DialogContent>
               <DialogHeader>
                 <DialogTitle>Record Payment</DialogTitle>
                 <DialogDescription>
-                  Record a payment received for this invoice.
+                  Record a payment received for this invoice. Amount due:{" "}
+                  {currency} {amountDue.toFixed(2)}
                 </DialogDescription>
               </DialogHeader>
-              
+
               <div className="space-y-4">
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <Label htmlFor="amount">Amount</Label>
+                    <Label className="text-xs font-medium text-gray-600 uppercase tracking-wider">
+                      Amount *
+                    </Label>
                     <Input
-                      id="amount"
+                      className="mt-1"
                       type="number"
                       step="0.01"
                       min="0.01"
                       max={amountDue}
                       value={formData.amount}
-                      onChange={(e) => setFormData(prev => ({ ...prev, amount: e.target.value }))}
-                      placeholder={`Max: ${currency} ${amountDue.toFixed(2)}`}
+                      onChange={(e) =>
+                        setFormData((prev) => ({
+                          ...prev,
+                          amount: e.target.value,
+                        }))
+                      }
+                      placeholder={amountDue.toFixed(2)}
                     />
                   </div>
-                  
+
                   <div>
-                    <Label htmlFor="method">Payment Method</Label>
+                    <Label className="text-xs font-medium text-gray-600 uppercase tracking-wider">
+                      Method
+                    </Label>
                     <Select
                       value={formData.method}
-                      onValueChange={(value) => setFormData(prev => ({ ...prev, method: value }))}
+                      onValueChange={(value) =>
+                        setFormData((prev) => ({ ...prev, method: value }))
+                      }
                     >
-                      <SelectTrigger>
+                      <SelectTrigger className="mt-1">
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="BANK_TRANSFER">Bank Transfer</SelectItem>
+                        <SelectItem value="BANK_TRANSFER">
+                          Bank Transfer
+                        </SelectItem>
                         <SelectItem value="CREDIT_CARD">Credit Card</SelectItem>
                         <SelectItem value="CHECK">Check</SelectItem>
                         <SelectItem value="CASH">Cash</SelectItem>
@@ -199,41 +258,62 @@ export function PaymentTracker({
                     </Select>
                   </div>
                 </div>
-                
+
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <Label htmlFor="reference">Reference</Label>
+                    <Label className="text-xs font-medium text-gray-600 uppercase tracking-wider">
+                      Reference
+                    </Label>
                     <Input
-                      id="reference"
+                      className="mt-1"
                       value={formData.reference}
-                      onChange={(e) => setFormData(prev => ({ ...prev, reference: e.target.value }))}
-                      placeholder="Transaction ID, check #, etc."
+                      onChange={(e) =>
+                        setFormData((prev) => ({
+                          ...prev,
+                          reference: e.target.value,
+                        }))
+                      }
+                      placeholder="Transaction ID"
                     />
                   </div>
-                  
+
                   <div>
-                    <Label htmlFor="receivedDate">Received Date</Label>
+                    <Label className="text-xs font-medium text-gray-600 uppercase tracking-wider">
+                      Date Received
+                    </Label>
                     <Input
-                      id="receivedDate"
+                      className="mt-1"
                       type="date"
                       value={formData.receivedDate}
-                      onChange={(e) => setFormData(prev => ({ ...prev, receivedDate: e.target.value }))}
+                      onChange={(e) =>
+                        setFormData((prev) => ({
+                          ...prev,
+                          receivedDate: e.target.value,
+                        }))
+                      }
                     />
                   </div>
                 </div>
-                
+
                 <div>
-                  <Label htmlFor="notes">Notes</Label>
+                  <Label className="text-xs font-medium text-gray-600 uppercase tracking-wider">
+                    Notes
+                  </Label>
                   <Textarea
-                    id="notes"
+                    className="mt-1"
                     value={formData.notes}
-                    onChange={(e) => setFormData(prev => ({ ...prev, notes: e.target.value }))}
-                    placeholder="Additional notes about this payment"
+                    onChange={(e) =>
+                      setFormData((prev) => ({
+                        ...prev,
+                        notes: e.target.value,
+                      }))
+                    }
+                    placeholder="Optional notes"
                     rows={3}
                   />
                 </div>
               </div>
-              
+
               <DialogFooter>
                 <Button
                   variant="outline"
@@ -244,7 +324,11 @@ export function PaymentTracker({
                 </Button>
                 <Button
                   onClick={addPayment}
-                  disabled={submitting || !formData.amount || Number(formData.amount) <= 0}
+                  disabled={
+                    submitting ||
+                    !formData.amount ||
+                    Number(formData.amount) <= 0
+                  }
                 >
                   {submitting ? "Recording..." : "Record Payment"}
                 </Button>
@@ -254,57 +338,97 @@ export function PaymentTracker({
         )}
       </div>
 
+      {/* Payments List */}
       {payments.length === 0 ? (
-        <div className="text-center py-8 text-muted-foreground">
-          <CreditCard className="h-8 w-8 mx-auto mb-3 opacity-50" />
-          <p>No payments recorded yet</p>
+        <div className="text-center py-8">
+          <CreditCard className="h-10 w-10 mx-auto mb-3 text-gray-300" />
+          <p className="text-sm text-gray-500">No payments recorded</p>
           {canAddPayment && (
-            <p className="text-sm">Record the first payment to get started.</p>
+            <p className="text-xs text-gray-400 mt-1">
+              Click "Record Payment" to add the first payment
+            </p>
           )}
         </div>
       ) : (
-        <div className="border rounded-md overflow-hidden">
-          <table className="w-full text-sm">
-            <thead className="bg-muted/50">
-              <tr>
-                <th className="text-left p-3 font-medium">Amount</th>
-                <th className="text-left p-3 font-medium">Method</th>
-                <th className="text-left p-3 font-medium">Reference</th>
-                <th className="text-left p-3 font-medium">Date</th>
-                <th className="text-left p-3 font-medium">Recorded By</th>
-              </tr>
-            </thead>
-            <tbody>
-              {payments.map((payment) => (
-                <tr key={payment.id} className="border-t">
-                  <td className="p-3 font-medium">
-                    <div className="flex items-center gap-2">
-                      <CheckCircle className="h-4 w-4 text-green-600" />
+        <>
+          {/* Table Header */}
+          <div className="grid grid-cols-12 gap-4 px-4 py-3 bg-gray-50 border border-gray-200 rounded-t-lg">
+            <div className="col-span-3 text-xs font-medium text-gray-600 uppercase tracking-wider">
+              Amount
+            </div>
+            <div className="col-span-2 text-xs font-medium text-gray-600 uppercase tracking-wider">
+              Method
+            </div>
+            <div className="col-span-2 text-xs font-medium text-gray-600 uppercase tracking-wider">
+              Reference
+            </div>
+            <div className="col-span-2 text-xs font-medium text-gray-600 uppercase tracking-wider">
+              Date
+            </div>
+            <div className="col-span-3 text-xs font-medium text-gray-600 uppercase tracking-wider">
+              Recorded By
+            </div>
+          </div>
+
+          {/* Table Body */}
+          <div className="border-x border-b border-gray-200 rounded-b-lg divide-y divide-gray-100">
+            {payments.map((payment) => (
+              <div
+                key={payment.id}
+                className="grid grid-cols-12 gap-4 px-4 py-3 items-center hover:bg-gray-50/50 transition-colors"
+              >
+                <div className="col-span-3">
+                  <div className="flex items-center gap-2">
+                    <CheckCircle className="h-4 w-4 text-green-500" />
+                    <span className="font-medium text-sm">
                       {payment.currency} {Number(payment.amount).toFixed(2)}
-                    </div>
-                  </td>
-                  <td className="p-3">
-                    {getMethodBadge(payment.method)}
-                  </td>
-                  <td className="p-3">
-                    {payment.reference || (
-                      <span className="text-muted-foreground">-</span>
-                    )}
-                  </td>
-                  <td className="p-3">
+                    </span>
+                  </div>
+                </div>
+                <div className="col-span-2">
+                  <span
+                    className={`text-[10px] font-medium uppercase px-2 py-1 rounded-full ${getMethodColor(payment.method)}`}
+                  >
+                    {getMethodLabel(payment.method)}
+                  </span>
+                </div>
+                <div className="col-span-2">
+                  {payment.reference ? (
                     <div className="flex items-center gap-1">
-                      <Calendar className="h-4 w-4 text-muted-foreground" />
-                      {new Date(payment.receivedDate).toLocaleDateString()}
+                      <Hash className="h-3 w-3 text-gray-400" />
+                      <span className="text-sm text-gray-700">
+                        {payment.reference}
+                      </span>
                     </div>
-                  </td>
-                  <td className="p-3 text-muted-foreground">
-                    {payment.creator.name || payment.creator.email}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+                  ) : (
+                    <span className="text-sm text-gray-400">—</span>
+                  )}
+                </div>
+                <div className="col-span-2">
+                  <div className="flex items-center gap-1">
+                    <Calendar className="h-3 w-3 text-gray-400" />
+                    <span className="text-sm text-gray-600">
+                      {new Date(payment.receivedDate).toLocaleDateString()}
+                    </span>
+                  </div>
+                </div>
+                <div className="col-span-3">
+                  <div className="flex items-center gap-1">
+                    <User className="h-3 w-3 text-gray-400" />
+                    <span className="text-sm text-gray-600">
+                      {payment.creator.name || payment.creator.email}
+                    </span>
+                  </div>
+                  {payment.notes && (
+                    <p className="text-xs text-gray-500 mt-1">
+                      {payment.notes}
+                    </p>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        </>
       )}
     </div>
   );

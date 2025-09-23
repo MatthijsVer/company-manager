@@ -2,31 +2,31 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
-import { 
-  Send, 
-  CheckCircle, 
-  XCircle, 
-  Clock, 
-  Ban, 
-  Calendar, 
-  FileText, 
+import {
+  Send,
+  CheckCircle,
+  XCircle,
+  Clock,
+  Ban,
+  FileText,
   Download,
   Edit,
-  Building,
-  User,
-  Mail,
-  Phone
+  MoreVertical,
+  AlertCircle,
+  ArrowLeft,
+  RefreshCw,
+  X,
 } from "lucide-react";
 import { PaymentTracker } from "./PaymentTracker";
-import { 
-  DropdownMenu, 
-  DropdownMenuContent, 
-  DropdownMenuItem, 
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
   DropdownMenuTrigger,
-  DropdownMenuSeparator
+  DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
 
 interface InvoiceViewerProps {
@@ -38,38 +38,41 @@ export function InvoiceViewer({ invoice: initialInvoice }: InvoiceViewerProps) {
   const [invoice, setInvoice] = useState(initialInvoice);
   const [updating, setUpdating] = useState(false);
 
-  function getStatusBadge(status: string) {
-    const config = {
-      DRAFT: { variant: "secondary" as const, icon: FileText, label: "Draft", color: "bg-gray-100 text-gray-800" },
-      SENT: { variant: "default" as const, icon: Send, label: "Sent", color: "bg-blue-100 text-blue-800" },
-      PAID: { variant: "default" as const, icon: CheckCircle, label: "Paid", color: "bg-green-100 text-green-800" },
-      PARTIAL: { variant: "outline" as const, icon: Clock, label: "Partial", color: "bg-yellow-100 text-yellow-800" },
-      OVERDUE: { variant: "destructive" as const, icon: XCircle, label: "Overdue", color: "bg-red-100 text-red-800" },
-      CANCELLED: { variant: "outline" as const, icon: Ban, label: "Cancelled", color: "bg-gray-100 text-gray-800" },
-      REFUNDED: { variant: "outline" as const, icon: XCircle, label: "Refunded", color: "bg-purple-100 text-purple-800" },
-    };
-    
-    const { icon: Icon, label, color } = config[status as keyof typeof config] || config.DRAFT;
-    
-    return (
-      <div className={`inline-flex items-center gap-2 px-3 py-1 rounded-full text-sm font-medium ${color}`}>
-        <Icon className="h-4 w-4" />
-        {label}
-      </div>
-    );
+  function getStatusColor(status: string) {
+    switch (status) {
+      case "DRAFT":
+        return "bg-gray-50 text-gray-700 ring-1 ring-inset ring-gray-600/20";
+      case "SENT":
+        return "bg-blue-50 text-blue-700 ring-1 ring-inset ring-blue-600/20";
+      case "PAID":
+        return "bg-green-50 text-green-700 ring-1 ring-inset ring-green-600/20";
+      case "PARTIAL":
+        return "bg-yellow-50 text-yellow-700 ring-1 ring-inset ring-yellow-600/20";
+      case "OVERDUE":
+        return "bg-red-50 text-red-700 ring-1 ring-inset ring-red-600/20";
+      case "CANCELLED":
+        return "bg-gray-50 text-gray-700 ring-1 ring-inset ring-gray-600/20";
+      case "REFUNDED":
+        return "bg-purple-50 text-purple-700 ring-1 ring-inset ring-purple-600/20";
+      default:
+        return "bg-gray-50 text-gray-700 ring-1 ring-inset ring-gray-600/20";
+    }
   }
 
-  function canTransitionTo(currentStatus: string, targetStatus: string): boolean {
+  function canTransitionTo(
+    currentStatus: string,
+    targetStatus: string
+  ): boolean {
     const validTransitions: Record<string, string[]> = {
-      DRAFT: ['SENT', 'CANCELLED'],
-      SENT: ['PAID', 'PARTIAL', 'OVERDUE', 'CANCELLED'],
-      PARTIAL: ['PAID', 'OVERDUE', 'CANCELLED'],
-      OVERDUE: ['PAID', 'PARTIAL', 'CANCELLED'],
-      PAID: ['REFUNDED'],
+      DRAFT: ["SENT", "CANCELLED"],
+      SENT: ["PAID", "PARTIAL", "OVERDUE", "CANCELLED"],
+      PARTIAL: ["PAID", "OVERDUE", "CANCELLED"],
+      OVERDUE: ["PAID", "PARTIAL", "CANCELLED"],
+      PAID: ["REFUNDED"],
       CANCELLED: [],
       REFUNDED: [],
     };
-    
+
     return validTransitions[currentStatus]?.includes(targetStatus) || false;
   }
 
@@ -77,21 +80,21 @@ export function InvoiceViewer({ invoice: initialInvoice }: InvoiceViewerProps) {
     try {
       setUpdating(true);
       const res = await fetch(`/api/invoices/${invoice.id}/status`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ status: newStatus }),
       });
 
       if (!res.ok) {
         const error = await res.json();
-        throw new Error(error.message || 'Failed to update status');
+        throw new Error(error.message || "Failed to update status");
       }
 
       const updatedInvoice = await res.json();
       setInvoice(updatedInvoice);
-      toast.success(`Invoice status updated to ${newStatus.toLowerCase()}`);
+      toast.success(`Invoice marked as ${newStatus.toLowerCase()}`);
     } catch (error: any) {
-      toast.error(error.message || 'Failed to update invoice status');
+      toast.error(error.message || "Failed to update invoice status");
     } finally {
       setUpdating(false);
     }
@@ -109,283 +112,281 @@ export function InvoiceViewer({ invoice: initialInvoice }: InvoiceViewerProps) {
     }
   }
 
-  const isOverdue = new Date(invoice.dueDate) < new Date() && invoice.status !== 'PAID' && invoice.status !== 'CANCELLED';
+  const isOverdue =
+    new Date(invoice.dueDate) < new Date() &&
+    invoice.status !== "PAID" &&
+    invoice.status !== "CANCELLED";
 
   return (
-    <div className="max-w-4xl mx-auto p-6 space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-4">
-          <div>
-            <h1 className="text-3xl font-bold">{invoice.number}</h1>
-            <p className="text-muted-foreground">
-              Created {new Date(invoice.createdAt).toLocaleDateString()}
-              {invoice.quote && ` • From Quote ${invoice.quote.number}`}
-            </p>
+    <div className="h-full">
+      {/* Minimal Header */}
+      <div className="border-b p-4">
+        <div className="flex items-center gap-3">
+          <h1 className="text-2xl font-semibold">{invoice.number}</h1>
+          <span
+            className={`text-[10px] font-medium uppercase px-2 py-1 rounded-full ${getStatusColor(invoice.status)}`}
+          >
+            {invoice.status}
+          </span>
+          <div className="text-sm text-gray-500">
+            {invoice.company?.name || "No Company"} • Due{" "}
+            {new Date(invoice.dueDate).toLocaleDateString()}
           </div>
-          {getStatusBadge(invoice.status)}
-        </div>
-        <div className="flex gap-2">
-          {invoice.status === 'DRAFT' && (
-            <Button
-              variant="outline"
-              onClick={() => router.push(`/dashboard/invoices/${invoice.id}/edit`)}
-            >
-              <Edit className="h-4 w-4 mr-2" />
-              Edit
-            </Button>
-          )}
-          <Button variant="outline">
-            <Download className="h-4 w-4 mr-2" />
-            Download PDF
-          </Button>
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="outline" disabled={updating}>
-                Actions
+          <div className="flex ml-auto items-center gap-2">
+            {invoice.status === "DRAFT" && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() =>
+                  router.push(`/dashboard/invoices/${invoice.id}/edit`)
+                }
+              >
+                <Edit className="h-4 w-4" />
+                Edit
               </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              {invoice.status === 'DRAFT' && canTransitionTo(invoice.status, 'SENT') && (
-                <DropdownMenuItem onClick={() => updateInvoiceStatus('SENT')}>
-                  <Send className="h-4 w-4 mr-2" />
-                  Mark as Sent
-                </DropdownMenuItem>
-              )}
-              
-              {invoice.status === 'SENT' && (
-                <>
-                  <DropdownMenuItem onClick={() => updateInvoiceStatus('PAID')}>
+            )}
+            <Button variant="ghost" size="sm">
+              <Download className="h-4 w-4" />
+              Download
+            </Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="icon" disabled={updating}>
+                  <MoreVertical className="h-4 w-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                {invoice.status === "DRAFT" && (
+                  <DropdownMenuItem onClick={() => updateInvoiceStatus("SENT")}>
+                    <Send className="h-4 w-4 mr-2" />
+                    Mark as Sent
+                  </DropdownMenuItem>
+                )}
+                {(invoice.status === "SENT" ||
+                  invoice.status === "OVERDUE") && (
+                  <DropdownMenuItem onClick={() => updateInvoiceStatus("PAID")}>
                     <CheckCircle className="h-4 w-4 mr-2" />
                     Mark as Paid
                   </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => updateInvoiceStatus('PARTIAL')}>
-                    <Clock className="h-4 w-4 mr-2" />
-                    Mark as Partial
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => updateInvoiceStatus('OVERDUE')}>
-                    <XCircle className="h-4 w-4 mr-2" />
-                    Mark as Overdue
-                  </DropdownMenuItem>
-                </>
-              )}
-              
-              {canTransitionTo(invoice.status, 'CANCELLED') && (
-                <>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem 
-                    onClick={() => updateInvoiceStatus('CANCELLED')}
-                    className="text-red-600"
-                  >
-                    <Ban className="h-4 w-4 mr-2" />
-                    Cancel Invoice
-                  </DropdownMenuItem>
-                </>
-              )}
-            </DropdownMenuContent>
-          </DropdownMenu>
+                )}
+                {canTransitionTo(invoice.status, "CANCELLED") && (
+                  <>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem
+                      onClick={() => updateInvoiceStatus("CANCELLED")}
+                      className="text-red-600"
+                    >
+                      <Ban className="h-4 w-4 mr-2" />
+                      Cancel Invoice
+                    </DropdownMenuItem>
+                  </>
+                )}
+              </DropdownMenuContent>
+            </DropdownMenu>
+            <Button variant="ghost" size="sm">
+              <Link href="/dashboard/invoices">
+                <X className="h-4 w-4" />
+              </Link>
+            </Button>
+          </div>
         </div>
       </div>
 
-      {/* Alert for overdue invoices */}
+      {/* Overdue Alert */}
       {isOverdue && (
-        <div className="bg-red-50 border border-red-200 rounded-md p-4">
-          <div className="flex items-center gap-2 text-red-800">
-            <XCircle className="h-5 w-5" />
-            <span className="font-medium">This invoice is overdue</span>
-          </div>
-          <p className="text-red-700 text-sm mt-1">
-            Payment was due on {new Date(invoice.dueDate).toLocaleDateString()}
-          </p>
+        <div className="bg-red-50 border border-red-200 rounded-lg p-3 mb-6 flex items-center gap-2">
+          <AlertCircle className="h-4 w-4 text-red-600" />
+          <span className="text-sm text-red-800">
+            This invoice is overdue since{" "}
+            {new Date(invoice.dueDate).toLocaleDateString()}
+          </span>
         </div>
       )}
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Main Content */}
-        <div className="lg:col-span-2 space-y-6">
-          {/* Customer Info */}
-          <div className="border rounded-lg p-6">
-            <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
-              <Building className="h-5 w-5" />
-              Bill To
-            </h3>
-            <div className="space-y-2">
-              <div className="font-medium text-lg">{invoice.company?.name || "No Company"}</div>
-              {invoice.contact && (
-                <div className="space-y-1 text-muted-foreground">
-                  <div className="flex items-center gap-2">
-                    <User className="h-4 w-4" />
-                    {invoice.contact.name}
-                    {invoice.contact.title && ` • ${invoice.contact.title}`}
-                  </div>
-                  {invoice.contact.email && (
-                    <div className="flex items-center gap-2">
-                      <Mail className="h-4 w-4" />
-                      {invoice.contact.email}
-                    </div>
-                  )}
-                  {invoice.contact.phone && (
-                    <div className="flex items-center gap-2">
-                      <Phone className="h-4 w-4" />
-                      {invoice.contact.phone}
-                    </div>
-                  )}
-                </div>
-              )}
+      {/* Main Content - Simple Cards */}
+      <div className="grid gap-4 p-4 pt-0 lg:grid-cols-3">
+        {/* Line Items - Takes 2 columns */}
+        <div className="lg:col-span-2 border-r pr-4 pt-4">
+          <div className="bg-white rounded-xl overflow-hidden">
+            <div className="px-6 py-3.5 bg-gray-50">
+              <h3 className="text-sm font-semibold text-gray-900">Items</h3>
             </div>
-          </div>
 
-          {/* Invoice Lines */}
-          <div className="border rounded-lg overflow-hidden">
-            <div className="bg-muted/30 p-4 border-b">
-              <h3 className="font-semibold">Invoice Items</h3>
-            </div>
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead className="bg-muted/50">
-                  <tr className="text-left">
-                    <th className="p-4 font-medium">Description</th>
-                    <th className="p-4 font-medium text-right w-20">Qty</th>
-                    <th className="p-4 font-medium text-right w-24">Rate</th>
-                    <th className="p-4 font-medium text-right w-24">Amount</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {invoice.lines?.map((line: any, index: number) => (
-                    <tr key={index} className="border-t">
-                      <td className="p-4">
-                        <div>
-                          <div className="font-medium">{line.name}</div>
-                          {line.description && (
-                            <div className="text-sm text-muted-foreground mt-1">
-                              {line.description}
-                            </div>
-                          )}
-                          {line.sku && (
-                            <div className="text-xs text-muted-foreground">
-                              SKU: {line.sku}
-                            </div>
-                          )}
-                        </div>
-                      </td>
-                      <td className="p-4 text-right">
-                        {Number(line.quantity)} {line.unitLabel}
-                      </td>
-                      <td className="p-4 text-right">
-                        {invoice.currency} {Number(line.unitPrice).toFixed(2)}
-                      </td>
-                      <td className="p-4 text-right font-medium">
+            <div className="divide-y divide-gray-100">
+              {invoice.lines?.map((line: any, index: number) => (
+                <div key={index} className="px-6 py-4">
+                  <div className="flex items-start justify-between">
+                    <div className="flex-1">
+                      <p className="text-sm font-medium text-gray-900">
+                        {line.name}
+                      </p>
+                      {line.description && (
+                        <p className="text-sm text-gray-500 mt-1">
+                          {line.description}
+                        </p>
+                      )}
+                    </div>
+                    <div className="text-right ml-4">
+                      <p className="text-sm font-medium text-gray-900">
                         {invoice.currency} {Number(line.lineTotal).toFixed(2)}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+                      </p>
+                      <p className="text-xs text-gray-500">
+                        {Number(line.quantity)} × {invoice.currency}{" "}
+                        {Number(line.unitPrice).toFixed(2)}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* Totals */}
+            <div className="bg-gray-50 px-6 py-4">
+              <div className="space-y-2 max-w-xs ml-auto">
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-600">Subtotal</span>
+                  <span>
+                    {invoice.currency} {Number(invoice.subtotal).toFixed(2)}
+                  </span>
+                </div>
+                {Number(invoice.taxTotal) > 0 && (
+                  <div className="flex justify-between text-sm">
+                    <span className="text-gray-600">Tax</span>
+                    <span>
+                      {invoice.currency} {Number(invoice.taxTotal).toFixed(2)}
+                    </span>
+                  </div>
+                )}
+                <div className="flex justify-between font-semibold pt-2 border-t">
+                  <span>Total</span>
+                  <span>
+                    {invoice.currency} {Number(invoice.total).toFixed(2)}
+                  </span>
+                </div>
+                {Number(invoice.amountPaid) > 0 && (
+                  <>
+                    <div className="flex justify-between text-sm text-green-600">
+                      <span>Paid</span>
+                      <span>
+                        -{invoice.currency}{" "}
+                        {Number(invoice.amountPaid).toFixed(2)}
+                      </span>
+                    </div>
+                    <div className="flex justify-between font-semibold">
+                      <span>Due</span>
+                      <span
+                        className={
+                          Number(invoice.amountDue) > 0
+                            ? "text-red-600"
+                            : "text-green-600"
+                        }
+                      >
+                        {invoice.currency}{" "}
+                        {Number(invoice.amountDue).toFixed(2)}
+                      </span>
+                    </div>
+                  </>
+                )}
+              </div>
             </div>
           </div>
-
-          {/* Notes */}
-          {(invoice.notesCustomer || invoice.notesInternal) && (
-            <div className="border rounded-lg p-6">
-              <h3 className="font-semibold mb-4">Notes</h3>
-              {invoice.notesCustomer && (
-                <div className="mb-4">
-                  <h4 className="text-sm font-medium text-muted-foreground mb-2">Customer Notes</h4>
-                  <p className="text-sm">{invoice.notesCustomer}</p>
-                </div>
-              )}
-              {invoice.notesInternal && (
-                <div>
-                  <h4 className="text-sm font-medium text-muted-foreground mb-2">Internal Notes</h4>
-                  <p className="text-sm text-muted-foreground">{invoice.notesInternal}</p>
-                </div>
-              )}
+          {/* Payments Section - Always visible for non-draft invoices */}
+          <div className="mt-4 bg-white rounded-xl overflow-hidden0">
+            <div className="px-6 py-3.5 rounded-t-xl bg-gray-50 ">
+              <h3 className="text-sm font-semibold text-gray-900">
+                Payment Tracking
+              </h3>
             </div>
-          )}
+            <div className="p-6">
+              <PaymentTracker
+                invoiceId={invoice.id}
+                currency={invoice.currency}
+                amountDue={Number(invoice.amountDue || 0)}
+                status={invoice.status}
+                onPaymentAdded={refreshInvoice}
+              />
+            </div>
+          </div>
         </div>
 
-        {/* Sidebar */}
-        <div className="space-y-6">
-          {/* Invoice Details */}
-          <div className="border rounded-lg p-6">
-            <h3 className="font-semibold mb-4">Invoice Details</h3>
-            <div className="space-y-3 text-sm">
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Issue Date</span>
+        {/* Right Column - Details */}
+        <div className="space-y-4 pt-4">
+          {/* Customer */}
+          <div className="bg-white rounded-xl overflow-hidden">
+            <div className="px-6 bg-gray-50 rounded-t-xl py-3.5">
+              <h3 className="text-sm font-semibold text-gray-900">Customer</h3>
+            </div>
+            <div className="px-6 py-4">
+              <p className="font-medium text-sm">
+                {invoice.company?.name || "No Company"}
+              </p>
+              {invoice.contact && (
+                <div className="mt-2 text-sm text-gray-600">
+                  <p>{invoice.contact.name}</p>
+                  {invoice.contact.email && (
+                    <p className="text-xs">{invoice.contact.email}</p>
+                  )}
+                  {invoice.contact.phone && (
+                    <p className="text-xs">{invoice.contact.phone}</p>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Dates */}
+          <div className="bg-white rounded-xl overflow-hidden">
+            <div className="px-6 py-3.5 bg-gray-50">
+              <h3 className="text-sm font-semibold text-gray-900">Details</h3>
+            </div>
+            <div className="px-6 py-4 space-y-2">
+              <div className="flex justify-between text-sm">
+                <span className="text-gray-600">Invoice Date</span>
                 <span>{new Date(invoice.issueDate).toLocaleDateString()}</span>
               </div>
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Due Date</span>
+              <div className="flex justify-between text-sm">
+                <span className="text-gray-600">Due Date</span>
                 <span className={isOverdue ? "text-red-600 font-medium" : ""}>
                   {new Date(invoice.dueDate).toLocaleDateString()}
                 </span>
               </div>
               {invoice.paymentTerms && (
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Terms</span>
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-600">Terms</span>
                   <span>{invoice.paymentTerms}</span>
                 </div>
-              )}
-              {invoice.paidDate && (
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Paid Date</span>
-                  <span className="text-green-600 font-medium">
-                    {new Date(invoice.paidDate).toLocaleDateString()}
-                  </span>
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* Totals */}
-          <div className="border rounded-lg p-6">
-            <h3 className="font-semibold mb-4">Summary</h3>
-            <div className="space-y-2 text-sm">
-              <div className="flex justify-between">
-                <span>Subtotal</span>
-                <span>{invoice.currency} {Number(invoice.subtotal).toFixed(2)}</span>
-              </div>
-              <div className="flex justify-between">
-                <span>Tax</span>
-                <span>{invoice.currency} {Number(invoice.taxTotal).toFixed(2)}</span>
-              </div>
-              <div className="border-t pt-2 mt-2">
-                <div className="flex justify-between font-semibold text-base">
-                  <span>Total</span>
-                  <span>{invoice.currency} {Number(invoice.total).toFixed(2)}</span>
-                </div>
-              </div>
-              {Number(invoice.amountPaid) > 0 && (
-                <>
-                  <div className="flex justify-between text-green-600">
-                    <span>Paid</span>
-                    <span>-{invoice.currency} {Number(invoice.amountPaid).toFixed(2)}</span>
-                  </div>
-                  <div className="border-t pt-2 mt-2">
-                    <div className="flex justify-between font-semibold text-base">
-                      <span>Amount Due</span>
-                      <span className={Number(invoice.amountDue) > 0 ? "text-red-600" : "text-green-600"}>
-                        {invoice.currency} {Number(invoice.amountDue).toFixed(2)}
-                      </span>
-                    </div>
-                  </div>
-                </>
               )}
             </div>
           </div>
         </div>
       </div>
 
-      {/* Payment Tracking */}
-      <div className="border rounded-lg p-6">
-        <PaymentTracker
-          invoiceId={invoice.id}
-          currency={invoice.currency}
-          amountDue={Number(invoice.amountDue || 0)}
-          status={invoice.status}
-          onPaymentAdded={refreshInvoice}
-        />
-      </div>
+      {/* Notes */}
+      {(invoice.notesCustomer || invoice.notesInternal) && (
+        <div className="mt-6 bg-white rounded-xl overflow-hidden">
+          <div className="px-6 pt-5 pb-3 border-b border-gray-200">
+            <h3 className="text-sm font-semibold text-gray-900">Notes</h3>
+          </div>
+          <div className="px-6 py-4 space-y-4">
+            {invoice.notesCustomer && (
+              <div>
+                <p className="text-xs font-medium text-gray-600 uppercase tracking-wider mb-1">
+                  Customer Notes
+                </p>
+                <p className="text-sm text-gray-700">{invoice.notesCustomer}</p>
+              </div>
+            )}
+            {invoice.notesInternal && (
+              <div>
+                <p className="text-xs font-medium text-gray-600 uppercase tracking-wider mb-1">
+                  Internal Notes
+                </p>
+                <p className="text-sm text-gray-500">{invoice.notesInternal}</p>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

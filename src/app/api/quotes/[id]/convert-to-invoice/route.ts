@@ -19,8 +19,6 @@ export async function POST(
         lines: {
           orderBy: { position: "asc" }
         },
-        company: true,
-        contact: true,
       },
     });
 

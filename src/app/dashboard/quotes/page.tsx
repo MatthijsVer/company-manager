@@ -7,6 +7,7 @@ import { getSession } from "@/lib/auth/session";
 import { formatDistanceToNow } from "date-fns";
 import { Plus, FileText, Clock, CheckCircle, XCircle, Send, Ban, AlertTriangle } from "lucide-react";
 import { processExpiredQuotes } from "@/lib/quote-expiration";
+import { QuickConvertButton } from "@/components/quotes/QuickConvertButton";
 
 async function getQuotes() {
   const session = await getSession();
@@ -201,11 +202,16 @@ export default async function QuotesPage() {
                       </div>
                     </td>
                     <td className="p-4">
-                      <Link href={`/dashboard/quotes/${quote.id}`}>
-                        <Button variant="outline" size="sm">
-                          Open
-                        </Button>
-                      </Link>
+                      <div className="flex gap-2">
+                        <Link href={`/dashboard/quotes/${quote.id}`}>
+                          <Button variant="outline" size="sm">
+                            Open
+                          </Button>
+                        </Link>
+                        {quote.status === 'ACCEPTED' && (
+                          <QuickConvertButton quoteId={quote.id} quoteName={quote.number} />
+                        )}
+                      </div>
                     </td>
                   </tr>
                 );

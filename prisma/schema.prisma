@@ -404,6 +404,7 @@ model Company {
   KanbanBoardConfig KanbanBoardConfig[]
   Meeting           Meeting[]
   invoices          Invoice[]
+  quotes            Quote[]
 
   @@unique([organizationId, slug])
   @@index([organizationId])
@@ -497,6 +498,7 @@ model CompanyContact {
   updatedAt          DateTime             @updatedAt
   MeetingParticipant MeetingParticipant[]
   invoices           Invoice[]
+  quotes             Quote[]
 
   @@index([companyId])
   @@index([email])
@@ -1385,7 +1387,9 @@ model Quote {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  organization Organization    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  company      Company?         @relation(fields: [companyId], references: [id], onDelete: SetNull)
+  contact      CompanyContact?  @relation(fields: [contactId], references: [id], onDelete: SetNull)
   lines        QuoteLine[]
   invoice      Invoice?
 }

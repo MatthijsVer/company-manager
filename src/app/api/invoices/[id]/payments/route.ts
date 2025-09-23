@@ -4,15 +4,16 @@ import { prisma } from "@/lib/db";
 
 export async function GET(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const session = await requireAuth();
+    const { id } = await params;
 
     // Verify invoice exists and belongs to organization
     const invoice = await prisma.invoice.findFirst({
       where: {
-        id: params.id,
+        id,
         organizationId: session.organizationId,
       },
     });
@@ -22,7 +23,7 @@ export async function GET(
     }
 
     const payments = await prisma.payment.findMany({
-      where: { invoiceId: params.id },
+      where: { invoiceId: id },
       include: {
         creator: {
           select: { name: true, email: true }
