@@ -10,20 +10,20 @@ async function getInvoices(organizationId: string) {
     where: { organizationId },
     include: {
       company: {
-        select: { name: true }
+        select: { name: true },
       },
       contact: {
-        select: { name: true, email: true }
+        select: { name: true, email: true },
       },
       creator: {
-        select: { name: true }
+        select: { name: true },
       },
       quote: {
-        select: { number: true }
+        select: { number: true },
       },
       _count: {
-        select: { payments: true }
-      }
+        select: { payments: true },
+      },
     },
     orderBy: { createdAt: "desc" },
     take: 50,
@@ -40,10 +40,17 @@ function getStatusBadge(status: string) {
     CANCELLED: { className: "bg-gray-100 text-gray-800", label: "Cancelled" },
     REFUNDED: { className: "bg-purple-100 text-purple-800", label: "Refunded" },
   };
-  
-  const { className, label } = config[status as keyof typeof config] || config.DRAFT;
-  
-  return <span className={`inline-flex px-2 py-1 text-xs font-medium rounded-full ${className}`}>{label}</span>;
+
+  const { className, label } =
+    config[status as keyof typeof config] || config.DRAFT;
+
+  return (
+    <span
+      className={`inline-flex px-2 py-1 text-xs font-medium rounded-full ${className}`}
+    >
+      {label}
+    </span>
+  );
 }
 
 export default async function InvoicesPage() {
@@ -107,18 +114,19 @@ export default async function InvoicesPage() {
                     )}
                   </div>
                 </td>
-                <td className="p-3">
-                  {getStatusBadge(invoice.status)}
-                </td>
+                <td className="p-3">{getStatusBadge(invoice.status)}</td>
                 <td className="p-3 text-right font-medium">
                   {invoice.currency} {Number(invoice.total).toFixed(2)}
                 </td>
                 <td className="p-3">
-                  <span className={`text-sm ${
-                    new Date(invoice.dueDate) < new Date() && invoice.status !== 'PAID' 
-                      ? 'text-red-600 font-medium' 
-                      : 'text-muted-foreground'
-                  }`}>
+                  <span
+                    className={`text-sm ${
+                      new Date(invoice.dueDate) < new Date() &&
+                      invoice.status !== "PAID"
+                        ? "text-red-600 font-medium"
+                        : "text-muted-foreground"
+                    }`}
+                  >
                     {new Date(invoice.dueDate).toLocaleDateString()}
                   </span>
                 </td>
@@ -127,21 +135,13 @@ export default async function InvoicesPage() {
                 </td>
                 <td className="p-3">
                   <div className="flex gap-1 justify-end">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      asChild
-                    >
+                    <Button variant="ghost" size="sm" asChild>
                       <Link href={`/dashboard/invoices/${invoice.id}`}>
                         <Eye className="h-4 w-4" />
                       </Link>
                     </Button>
-                    {invoice.status === 'DRAFT' && (
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        asChild
-                      >
+                    {invoice.status === "DRAFT" && (
+                      <Button variant="ghost" size="sm" asChild>
                         <Link href={`/dashboard/invoices/${invoice.id}/edit`}>
                           <Edit className="h-4 w-4" />
                         </Link>
@@ -153,12 +153,17 @@ export default async function InvoicesPage() {
             ))}
             {invoices.length === 0 && (
               <tr>
-                <td colSpan={7} className="p-8 text-center text-muted-foreground">
+                <td
+                  colSpan={7}
+                  className="p-8 text-center text-muted-foreground"
+                >
                   <div className="flex flex-col items-center gap-3">
                     <FileText className="h-8 w-8" />
                     <div>
                       <h3 className="font-medium">No invoices yet</h3>
-                      <p className="text-sm">Create your first invoice to get started.</p>
+                      <p className="text-sm">
+                        Create your first invoice to get started.
+                      </p>
                     </div>
                     <Button asChild>
                       <Link href="/dashboard/invoices/new">

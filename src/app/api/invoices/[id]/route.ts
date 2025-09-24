@@ -4,13 +4,14 @@ import { prisma } from "@/lib/db";
 
 export async function GET(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const session = await requireAuth();
+    const { id } = await params;
     const invoice = await prisma.invoice.findFirst({
       where: {
-        id: params.id,
+        id,
         organizationId: session.organizationId,
       },
       include: {
@@ -55,16 +56,17 @@ export async function GET(
 
 export async function PUT(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const session = await requireAuth();
+    const { id } = await params;
     const body = await req.json();
 
     // Verify invoice exists and belongs to organization
     const existingInvoice = await prisma.invoice.findFirst({
       where: {
-        id: params.id,
+        id,
         organizationId: session.organizationId,
       },
     });
@@ -77,7 +79,7 @@ export async function PUT(
     const updatedInvoice = await prisma.$transaction(async (tx) => {
       // Delete existing lines
       await tx.invoiceLine.deleteMany({
-        where: { invoiceId: params.id }
+        where: { invoiceId: id }
       });
 
       // Calculate totals from lines
@@ -99,7 +101,7 @@ export async function PUT(
 
       // Update invoice
       const invoice = await tx.invoice.update({
-        where: { id: params.id },
+        where: { id },
         data: {
           currency: body.currency,
           companyId: body.companyId,
@@ -120,7 +122,7 @@ export async function PUT(
       if (lines.length > 0) {
         await tx.invoiceLine.createMany({
           data: lines.map((line: any, index: number) => ({
-            invoiceId: params.id,
+            invoiceId: id,
             productId: line.productId || null,
             variantId: line.variantId || null,
             sku: line.sku || null,
@@ -145,7 +147,7 @@ export async function PUT(
 
     // Fetch updated invoice with relations
     const invoice = await prisma.invoice.findFirst({
-      where: { id: params.id },
+      where: { id },
       include: {
         company: true,
         contact: true,
@@ -166,14 +168,15 @@ export async function PUT(
 
 export async function DELETE(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const session = await requireAuth();
+    const { id } = await params;
 
     const invoice = await prisma.invoice.findFirst({
       where: {
-        id: params.id,
+        id,
         organizationId: session.organizationId,
       },
     });
@@ -191,7 +194,7 @@ export async function DELETE(
     }
 
     await prisma.invoice.delete({
-      where: { id: params.id }
+      where: { id }
     });
 
     return NextResponse.json({ success: true });

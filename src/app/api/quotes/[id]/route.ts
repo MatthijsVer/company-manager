@@ -4,10 +4,10 @@ import { prisma } from "@/lib/db";
 import { quoteUnitPrice } from "@/lib/catalog/pricing";
 import { Decimal } from "@prisma/client/runtime/library";
 
-export async function PUT(req: NextRequest, { params }: { params: { id: string } }) {
+export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const session = await requireAuth();
-    const { id } = params;
+    const { id } = await params;
     const body = await req.json();
 
     // body: { currency?, priceBookId?, companyId?, notesInternal?, notesCustomer?, lines: [...] }

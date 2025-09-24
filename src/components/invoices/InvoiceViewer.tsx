@@ -112,6 +112,30 @@ export function InvoiceViewer({ invoice: initialInvoice }: InvoiceViewerProps) {
     }
   }
 
+  async function downloadPDF() {
+    try {
+      const res = await fetch(`/api/invoices/${invoice.id}/pdf`);
+      if (!res.ok) {
+        throw new Error("Failed to generate PDF");
+      }
+      
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `invoice-${invoice.number}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+      
+      toast.success("Invoice downloaded successfully");
+    } catch (error) {
+      console.error("Failed to download PDF:", error);
+      toast.error("Failed to download invoice PDF");
+    }
+  }
+
   const isOverdue =
     new Date(invoice.dueDate) < new Date() &&
     invoice.status !== "PAID" &&
@@ -145,7 +169,7 @@ export function InvoiceViewer({ invoice: initialInvoice }: InvoiceViewerProps) {
                 Edit
               </Button>
             )}
-            <Button variant="ghost" size="sm">
+            <Button variant="ghost" size="sm" onClick={downloadPDF}>
               <Download className="h-4 w-4" />
               Download
             </Button>

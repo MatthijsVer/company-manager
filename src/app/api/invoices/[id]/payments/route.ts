@@ -44,16 +44,17 @@ export async function GET(
 
 export async function POST(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const session = await requireAuth();
+    const { id } = await params;
     const body = await req.json();
 
     // Verify invoice exists and belongs to organization
     const invoice = await prisma.invoice.findFirst({
       where: {
-        id: params.id,
+        id,
         organizationId: session.organizationId,
       },
     });
@@ -84,7 +85,7 @@ export async function POST(
       const payment = await tx.payment.create({
         data: {
           organizationId: session.organizationId!,
-          invoiceId: params.id,
+          invoiceId: id,
           amount: paymentAmount,
           currency: body.currency || invoice.currency,
           method: body.method,
@@ -114,7 +115,7 @@ export async function POST(
 
       // Update invoice
       const updatedInvoice = await tx.invoice.update({
-        where: { id: params.id },
+        where: { id },
         data: {
           amountPaid: totalPaid,
           amountDue: amountDue,

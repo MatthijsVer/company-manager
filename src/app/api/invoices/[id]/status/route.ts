@@ -4,16 +4,17 @@ import { prisma } from "@/lib/db";
 
 export async function PATCH(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const session = await requireAuth();
+    const { id } = await params;
     const { status } = await req.json();
 
     // Verify invoice exists and belongs to organization
     const existingInvoice = await prisma.invoice.findFirst({
       where: {
-        id: params.id,
+        id,
         organizationId: session.organizationId,
       },
     });
@@ -51,7 +52,7 @@ export async function PATCH(
     }
 
     const updatedInvoice = await prisma.invoice.update({
-      where: { id: params.id },
+      where: { id },
       data: updateData,
       include: {
         company: true,

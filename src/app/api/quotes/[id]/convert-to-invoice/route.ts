@@ -4,15 +4,16 @@ import { prisma } from "@/lib/db";
 
 export async function POST(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const session = await requireAuth();
+    const { id } = await params;
 
     // Get the quote with all its details
     const quote = await prisma.quote.findFirst({
       where: {
-        id: params.id,
+        id,
         organizationId: session.organizationId,
       },
       include: {
@@ -36,7 +37,7 @@ export async function POST(
 
     // Check if quote already has an invoice
     const existingInvoice = await prisma.invoice.findFirst({
-      where: { quoteId: quote.id }
+      where: { quoteId: id }
     });
 
     if (existingInvoice) {

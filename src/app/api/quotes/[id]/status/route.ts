@@ -4,7 +4,7 @@ import { getSession } from "@/lib/auth/session";
 
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const session = await getSession();
@@ -12,6 +12,7 @@ export async function PATCH(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
+    const { id } = await params;
     const { status } = await request.json();
     
     // Validate status
@@ -23,7 +24,7 @@ export async function PATCH(
     // Get current quote to validate transition
     const currentQuote = await prisma.quote.findFirst({
       where: {
-        id: params.id,
+        id,
         organizationId: session.organizationId,
       },
     });
@@ -52,7 +53,7 @@ export async function PATCH(
 
     // Update the quote status
     const updatedQuote = await prisma.quote.update({
-      where: { id: params.id },
+      where: { id },
       data: { 
         status,
         updatedBy: session.userId,
